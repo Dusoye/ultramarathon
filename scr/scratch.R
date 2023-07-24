@@ -1,0 +1,289 @@
+############
+# data prep
+############
+
+data <- fread("./data/TWO_CENTURIES_OF_UM_RACES.csv")
+names(data) <- gsub(" ", "_", names(data))
+
+(sapply(data, function(x) mean(is.na(x) | x == '')*100)) %>% as.data.frame(.)
+
+data %>%
+  filter(!`Event_distance/length` %like% '/') %>% #filter out stage races
+  mutate(race_location = str_extract(Event_name, "\\(([^()]*)\\)(?![^()]*\\()"), 
+         race_location = str_replace_all(race_location, "[()]", ""), #location of race from event name
+         race_distance = as.numeric(str_extract(`Event_distance/length`, "[0-9.]+")), #distance or time of event
+         race_unit = tolower(str_extract(`Event_distance/length`, "[a-zA-Z]+")), 
+         race_distance = as.numeric(race_distance),
+         race_type = if_else(race_unit %in% c('h', 'd'), 'time', 'distance'), #split out distance races from timed
+         race_unit = if_else(race_type == 'time', race_unit, 
+                        if_else(str_starts(race_unit, 'k'), 'km',
+                        if_else(str_starts(race_unit, 'm'), 'm', 'other'))),
+         distance_km = if_else(race_unit == 'km', race_distance, if_else(race_unit == 'm', race_distance*1.62, NA)), #convert miles into km
+         athlete_age = as.numeric(Year_of_event) - as.numeric(Athlete_year_of_birth)) %>%
+  mutate( #standardise athlete performance values
+         numeric_string = str_extract(Athlete_performance, "\\d+[:d.]+\\d+[:.]*\\d*"),
+         athlete_units = str_extract(Athlete_performance, "[a-zA-Z ]+"),
+         days = if_else(str_detect(Athlete_performance, "d"), 
+                        as.numeric(str_extract(Athlete_performance, "\\d+(?=d)")), 
+                        0),
+         time = if_else(str_detect(Athlete_performance, ":"), 
+                        as.duration(hms(str_extract(Athlete_performance, "(?<=d |^)\\d+:\\d+:\\d+"))), 
+                        as.duration(0)),
+         athlete_duration = as.duration(days(days)) + time,
+         athlete_distance = case_when(
+           str_detect(athlete_units, "km") ~ as.numeric(str_replace(numeric_string, "km", "")),
+           TRUE ~ NA_real_
+         ),
+         days = NULL,
+         time = NULL,
+         numeric_string = NULL
+  ) %>% 
+  select(-c(Event_dates, `Event_distance/length`, Athlete_club)) -> data_clean
+
+### participation
+
+data_clean %>%
+  #mutate(event_name = paste0(Event_name,"_", Year_of_event)) %>%
+  group_by(Year_of_event, race_type) %>%
+  distinct(Event_name, race_type) %>% 
+  count(Year_of_event, race_type) %>%
+  #filter(Year_of_event >= 1950) %>%
+  ggplot(aes(x = Year_of_event, y = n, colour = race_type)) +
+  theme_minimal() +
+  geom_point() +
+  scale_y_continuous(labels = comma) +
+  ggtitle('Number of events per year')
+
+data_clean %>%
+  #mutate(event_name = paste0(Event_name,"_", Year_of_event)) %>%
+  count(Year_of_event, race_type) %>%
+  #filter(Year_of_event >= 1950) %>%
+  ggplot(aes(x = Year_of_event, y = n, colour = race_type)) +
+  theme_minimal() +
+  geom_point() +
+  scale_y_continuous(labels = comma) +
+  ggtitle('Number of participants per year')
+
+data_clean %>%
+  count(Year_of_event, race_type, Athlete_ID) %>% 
+  group_by(Year_of_event, race_type) %>%
+  summarise(average_races = mean(n)) %>%
+  ggplot(aes(x = Year_of_event, y = average_races, colour = race_type)) +
+  theme_minimal() +
+  geom_point() +
+  scale_y_continuous(labels = comma) +
+  ggtitle('Average number of races per athlete')
+
+
+#gender shift
+data_clean %>%
+  filter(Year_of_event >= 1950,
+         Athlete_gender %in% c('M','F')) %>%
+  count(Year_of_event, Athlete_gender) %>%
+  group_by(Year_of_event) %>%
+  mutate(percent = n/sum(n)) %>%
+  ggplot(aes(x = Year_of_event, y = percent, fill = Athlete_gender)) +
+  geom_bar(stat = 'identity') +
+  theme_minimal() +
+  labs(x = 'year', y = 'percentage', fill = 'gender') +
+  ggtitle('Gender divide') +
+  geom_line(data = newdata, aes(y = 1-pred, x = Year_of_event, fill = NULL), colour = 'red') +
+  scale_y_continuous(labels = percent)
+  
+# highest & lowest female participation
+data_clean %>%
+  filter(Year_of_event >= 2017,
+         Athlete_gender %in% c('M','F')) %>%
+  group_by(Athlete_gender, race_location, Event_name) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(race_location) %>%
+  summarise(event_count = n_distinct(Event_name),
+            female_percent = sum(if_else(Athlete_gender == 'F', n, 0)) / sum(n)) %>% 
+  filter(event_count > 1) %>%
+  arrange(desc(female_percent)) 
+
+data_clean %>%
+  filter(Year_of_event >= 1950,
+         Athlete_gender %in% c('M','F'),
+         race_location %in% c('FRA','ESP','USA','GBR','GER','ITA')) %>%
+  count(Year_of_event, Athlete_gender, race_location) %>%
+  group_by(Year_of_event, race_location) %>%
+  mutate(percent = n/sum(n)) %>% 
+  filter(Athlete_gender == 'F') %>%
+  ggplot(aes(x = Year_of_event, y = percent, colour = race_location)) +
+  geom_line() +
+  theme_minimal() +
+  labs(x = 'year', y = 'percentage female') +
+  ggtitle('Gender divide') +
+  scale_y_continuous(labels = percent)
+
+data_clean %>%
+  filter(Year_of_event >= 1950,
+         Athlete_gender %in% c('M','F')) %>%
+  count(Year_of_event, Athlete_gender) %>%
+  group_by(Year_of_event) %>%
+  mutate(percent = n/sum(n)) %>% 
+  filter(Athlete_gender == 'F') -> female_perc
+
+#lm(percent ~ Year_of_event, data = female_perc, family = binomial) -> model
+
+#install.packages("segmented") 
+library(segmented)
+
+lin.mod <- lm(percent ~ Year_of_event, data = female_perc)
+seg.mod <- segmented::segmented(lin.mod, seg.Z = ~Year_of_event, psi = c(1980, 2000))
+
+# Show the summary of the segmented model
+summary(seg.mod)
+
+newdata <- data.frame(Year_of_event = seq(min(female_perc$Year_of_event), max(female_perc$Year_of_event), length.out = 100))
+
+# Generate predictions
+newdata$pred <- predict(seg.mod, newdata = newdata)
+
+# Plot the data and the regression line
+ggplot(female_perc, aes(x = Year_of_event, y = percent)) +
+  geom_point() +  # plot the data points
+  geom_line(data = newdata, aes(y = pred), colour = 'red') +  # plot the regression line
+  theme_minimal() +
+  ggtitle('Segmented linear regression of female participation')
+
+data_clean %>%
+  filter(Year_of_event >= 1950,
+         Athlete_gender %in% c('M','F')) %>%
+  count(Year_of_event, Athlete_gender) %>%
+  group_by(Year_of_event) %>%
+  mutate(percent = n/sum(n)) %>%
+  ggplot(aes(x = Year_of_event, y = percent, fill = Athlete_gender)) +
+  geom_bar(stat = 'identity') +
+  theme_minimal() +
+  labs(x = 'year', y = 'percentage', fill = 'gender') +
+  ggtitle('Gender divide') +
+  geom_line(data = newdata, aes(y = 1-pred, x = Year_of_event, fill = NULL), colour = 'red')
+
+# Extend dataframe with future years
+future_years <- data.frame(Year_of_event = seq(max(female_perc$Year_of_event) + 1, max(female_perc$Year_of_event) + 80))
+
+# Predict proportions for future years
+future_years$percent <- predict(seg.mod, newdata = future_years, type = "response")
+future_years$source <- 'predicted'
+
+# Combine past data with future predictions
+data_clean %>%
+  filter(Year_of_event >= 1950,
+         Athlete_gender %in% c('M','F')) %>%
+  count(Year_of_event, Athlete_gender) %>%
+  group_by(Year_of_event) %>%
+  mutate(percent = n/sum(n)) %>% 
+  filter(Athlete_gender == 'F') %>%
+  mutate(source = 'observed') %>%
+  dplyr::select(Year_of_event, percent, source) %>% 
+  rbind(., future_years) %>%
+  mutate(Male = 1-percent,
+         Female = percent) %>% 
+  dplyr::select(-percent) %>%
+  pivot_longer(cols = c('Male', 'Female'), names_to = 'Gender', values_to = 'percent') %>% 
+  mutate(gender_source = paste0(substr(Gender,1,1),'_', source)) %>%
+  ggplot(aes(x = Year_of_event, y = percent, fill = gender_source)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("F_observed" = "#F8766D", "M_observed" = "#00BFC4", 
+                               "F_predicted" = "#FFCCCC", "M_predicted" = "#33FFFF")) +
+  theme_minimal() 
+
+###
+
+data_clean %>%
+  distinct(Year_of_event, Event_name) %>%
+  count(Event_name) %>%
+  arrange(desc(n)) %>%
+  filter(n >= 10) -> multiple_events
+
+data_clean %>%
+  filter(Year_of_event >= 1950) %>% 
+  filter(Event_name %in% multiple_events$Event_name) %>%
+  group_by(Year_of_event, Event_name, Athlete_gender) %>%
+  summarise(average_speed = mean(athlete_duration, na.rm = TRUE)) %>% 
+  filter(Event_name == 'Comrades Marathon - Down Run (RSA)') %>%
+  ggplot(aes(x = Year_of_event, y = average_speed/(60*60), colour = Athlete_gender)) +
+  geom_point() +
+  theme_minimal()
+
+
+data_clean %>%
+  filter(Year_of_event >= 1950) %>% filter(Event_name == 'Comrades Marathon - Down Run (RSA)') %>% 
+  group_by(Year_of_event) %>%
+  head(10) %>% View()
+
+age_groups = data.frame(age_breaks = c(0,seq.int(20,70, by = 5), Inf))
+
+data_clean %>%
+  filter(Year_of_event >= 1950) %>%
+  mutate(age_group = cut(athlete_age, age_groups$age_breaks)) %>%
+  count(Year_of_event, age_group) %>%
+  filter(complete.cases(.)) %>% 
+  ungroup() %>% group_by(Year_of_event) %>%
+  mutate(percent = n/sum(n)) %>%
+  ggplot(aes(x = Year_of_event, y = percent, fill = age_group)) +
+  geom_bar(stat = 'identity') +
+  theme_minimal()
+
+
+data_clean %>%
+  filter(Year_of_event >=2000) %>%
+  count(race_location) %>%
+  arrange(desc(n)) %>%
+  head(n = 6) -> top_countries
+
+data_clean %>%
+  filter(race_location %in% top_countries$race_location,
+         Year_of_event >= 1950) %>%
+  group_by(Year_of_event, race_location) %>%
+  distinct(Athlete_country) %>%
+  count(Year_of_event, race_location) %>%
+  ggplot(aes(x = Year_of_event, y = n, colour = race_location)) +
+  theme_minimal() +
+  geom_point() +
+  ggtitle('nationalities per race')
+
+
+data_clean %>%
+  filter(race_location %in% top_countries$race_location,
+         Year_of_event >= 1950) %>%
+  mutate(foreign_race = if_else(Athlete_country == race_location, 0, 1)) %>%
+  group_by(Year_of_event, race_location) %>% 
+  summarise(foreign_participation = sum(foreign_race)/n()) %>% 
+  ggplot(aes(x = Year_of_event, y = foreign_participation, colour = race_location)) +
+  theme_minimal() +
+  geom_point() +
+  ggtitle('foreign participation per race')
+  
+data_clean %>%
+  filter(Year_of_event == 2022) %>%
+  group_by(Year_of_event, Event_name, race_location) %>%
+  distinct(Athlete_country) %>%
+  count(Year_of_event, Event_name, race_location) %>%
+  arrange(desc(n)) %>% head(n = 20)
+
+data_clean %>%
+  filter(Event_name %in% utmb$Event_name,
+         Year_of_event >= 1950) %>%
+  mutate(foreign_race = if_else(Athlete_country %in% c('FRA', 'ITA', 'SUI'), 0, 1)) %>%
+  group_by(Year_of_event, Event_name) %>% 
+  summarise(foreign_participation = sum(foreign_race)/n()) %>% 
+  ggplot(aes(x = Year_of_event, y = foreign_participation, colour = Event_name)) +
+  theme_minimal() +
+  geom_point() +
+  ggtitle('foreign participation per race utmb')
+
+data_clean %>%
+  mutate(location = if_else(race_location == 'GER', 'GER','RoW')) %>%
+  count(location, Athlete_age_category) %>%
+  pivot_wider(names_from = location, values_from = n) %>%
+  head(n = 10)
+
+data %>%
+  group_by(Year_of_event) %>%
+  summarise(missing = sum(if_else((is.na(Athlete_year_of_birth) | Athlete_year_of_birth == ""), 1, 0)),
+            perc_missing = missing/n()) %>% 
+  arrange(desc(missing)) %>%
+  head(n = 20)

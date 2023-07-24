@@ -1,0 +1,129 @@
+---
+title: "Ultramarathon Analysis"
+output:
+  html_notebook: default
+  github_document: defaultx
+---
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE)
+```
+
+## 1. Introduction
+
+### 1.1 Load and check data 
+
+First let's load the required libraries and dataset
+
+```{r dependencies, message = FALSE}
+library(data.table)
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+library(stringr)
+library(tidyr)
+library(lubridate)
+```
+
+```{r, message=FALSE}
+data <- fread('./data/TWO_CENTURIES_OF_UM_RACES.csv', sep = ',', header = TRUE)
+summary(data)
+```
+
+We can see that the dataset has events from 1798 to 2022 and there may be a few inaccuracies with the dataset, for example it's unlikely that anyone was born in 1193 would have run an ultramarathon since 1798. Most of the other fields are in character type, and so a bit of feature engineering will be required to make these fields a bit easier to analyse. We'll replace the spaces in the column names with underscores to make analysis slightly easier.
+
+```{r, message=FALSE}
+names(data) <- gsub(" ", "_", names(data))
+
+(sapply(data, function(x) round(mean(is.na(x) | x == '')*100,2))) %>% 
+  as.data.frame(.) %>% 
+  setNames("Percent_Missing") %>%
+  arrange(desc(Percent_Missing))
+```
+
+A glance at the missing entries shows 38% missing Athlete_club, along with 8% missing age related fields. Athlete_club isn't too important for my intial data exploratory analysis and so can be excluded.
+
+```{r}
+data %>%
+  group_by(Year_of_event) %>%
+  summarise(missing = sum(is.na(Athlete_year_of_birth)| Athlete_year_of_birth == ""),
+            perc_missing = mean(is.na(Athlete_year_of_birth) | Athlete_year_of_birth == "")) %>%
+  arrange(desc(missing))
+```
+
+The participants with missing year of birth/age category doesn't appear to be concentrated in a particular event or year. The count of these is the highest in the most recent years, but with a low overall percentage of missing fields due to higher overall participation numbers. Something to consider when analysing age or participants.
+
+### 1.2 Data cleaning
+
+Next we'll clean up some of the fields. First, I'm only going to be considering single stage events, so I'll be removing events such as Marathon des Sables (MAR). These can be identified as they contain "/" in the Event_distance/length field, for example "249km/6Etappen". 
+
+```{r}
+data %>%
+    summarise(multievent_perc = mean(grepl('/', `Event_distance/length`)))
+```
+
+These entries account for 1.2% of all entries in the dataset, indicating that most people are running single stage events.
+
+We'll also extract the location of the race from the Event_name, which is contained in the final set of brackets in the Event_name field. For example "Ultra Maratón des las Altas Montanas (UMAM) 80 Kms (MEX)" is in MEX.
+
+```{r}
+data_clean <- data %>%
+  filter(!`Event_distance/length` %like% '/') %>% #filter out stage races
+  mutate(race_location = str_extract(Event_name, "\\(([^()]*)\\)(?![^()]*\\()"), 
+         race_location = str_replace_all(race_location, "[()]", "")) %>% #location of race from event name
+  dplyr::select(-c(Event_dates, Athlete_club))
+```
+
+The length of an ultramarathons is either set in distance (eg 100km) or time (eg 24h), and the Event_distance/length contains both of these types, so we'll flag these seperately and convert all distance length races into km from miles. 
+
+```{r}
+data_clean %<>%
+          mutate(race_distance = as.numeric(str_extract(`Event_distance/length`, "[0-9.]+")), #distance or time of event
+         race_unit = tolower(str_extract(`Event_distance/length`, "[a-zA-Z]+")), 
+         race_distance = as.numeric(race_distance),
+         race_type = if_else(race_unit %in% c('h', 'd'), 'time', 'distance'), #split out distance races from timed
+         race_unit = if_else(race_type == 'time', race_unit, 
+                        if_else(str_starts(race_unit, 'k'), 'km',
+                        if_else(str_starts(race_unit, 'm'), 'm', 'other'))),
+         distance_km = if_else(race_unit == 'km', race_distance, if_else(race_unit == 'm', race_distance*1.62, NA))) %>%#convert miles into km
+  dplyr::select(-`Event_distance/length`)
+```
+
+Although the dataset includes an Athlete_age_category field, these aren't standard across events, with German races using the DLV categories with the rest of the world using IAAF. This can be seen below with the categories "M20" and "M30" appearing in German races not not in the rest of the world. So we'll add a column for the athlete's age and calculate categories separately.
+
+```{r}
+data_clean %<>%
+         mutate(athlete_age = as.numeric(Year_of_event) - as.numeric(Athlete_year_of_birth))
+
+data_clean %>%
+  mutate(location = if_else(race_location == 'GER', 'GER','RoW')) %>%
+  count(location, Athlete_age_category) %>%
+  pivot_wider(names_from = location, values_from = n) 
+```
+
+Finally we'll convert the Athlete_performance column into a more usable format, splitting out the times athlete's have completed distance based events into a 'duration' formatted field, and the distance travelled for time based events.
+
+```{r, warning=FALSE}
+data_clean %<>%
+  mutate( #standardise athlete performance values
+         numeric_string = str_extract(Athlete_performance, "\\d+[:d.]+\\d+[:.]*\\d*"),
+         athlete_units = str_extract(Athlete_performance, "[a-zA-Z ]+"),
+         days = if_else(str_detect(Athlete_performance, "d"), 
+                        as.numeric(str_extract(Athlete_performance, "\\d+(?=d)")), 
+                        0),
+         time = if_else(str_detect(Athlete_performance, ":"), 
+                        as.duration(hms(str_extract(Athlete_performance, "(?<=d |^)\\d+:\\d+:\\d+"))), 
+                        as.duration(0)),
+         athlete_duration = as.duration(days(days)) + time,
+         athlete_distance = case_when(
+           str_detect(athlete_units, "km") ~ as.numeric(str_replace(numeric_string, "km", "")),
+           TRUE ~ NA_real_
+         ),
+         days = NULL,
+         time = NULL,
+         numeric_string = NULL
+  ) 
+```
+
+
