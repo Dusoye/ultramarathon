@@ -43,26 +43,22 @@ data %>%
 ### participation
 
 data_clean %>%
-  #mutate(event_name = paste0(Event_name,"_", Year_of_event)) %>%
   group_by(Year_of_event, race_type) %>%
   distinct(Event_name, race_type) %>% 
   count(Year_of_event, race_type) %>%
-  #filter(Year_of_event >= 1950) %>%
   ggplot(aes(x = Year_of_event, y = n, colour = race_type)) +
   theme_minimal() +
   geom_point() +
   scale_y_continuous(labels = comma) +
-  ggtitle('Number of events per year')
+  ggtitle('Number of events per year') -> events.p
 
 data_clean %>%
-  #mutate(event_name = paste0(Event_name,"_", Year_of_event)) %>%
   count(Year_of_event, race_type) %>%
-  #filter(Year_of_event >= 1950) %>%
   ggplot(aes(x = Year_of_event, y = n, colour = race_type)) +
   theme_minimal() +
   geom_point() +
   scale_y_continuous(labels = comma) +
-  ggtitle('Number of participants per year')
+  ggtitle('Number of participants per year') -> athletes.p
 
 data_clean %>%
   count(Year_of_event, race_type, Athlete_ID) %>% 
@@ -72,9 +68,27 @@ data_clean %>%
   theme_minimal() +
   geom_point() +
   scale_y_continuous(labels = comma) +
-  ggtitle('Average number of races per athlete')
+  ggtitle('Average number of races per athlete') -> avgrace.p
 
+data_clean %>%
+  distinct(Year_of_event, race_type, Event_name, Event_number_of_finishers) %>% 
+  group_by(Year_of_event, race_type) %>%
+  summarise(average_athletes = mean(Event_number_of_finishers)) %>%
+  ggplot(aes(x = Year_of_event, y = average_athletes, colour = race_type)) +
+  theme_minimal() +
+  geom_point() +
+  scale_y_continuous(labels = comma) +
+  ggtitle('Average number of athletes per race') -> avgathlete.p
 
+grid.arrange(events.p, athletes.p, ncol = 2)
+grid.arrange(avgathlete.p, avgrace.p, ncol = 1)
+
+data_clean %>%
+  distinct(Year_of_event, Event_name, race_distance, race_unit, race_type) %>%
+  mutate(race_distance = paste0(race_distance, " ", race_unit)) %>%
+  count(race_distance) %>%
+  arrange(desc(n)) %>%
+  head(n = 10)
 #gender shift
 data_clean %>%
   filter(Year_of_event >= 1950,
