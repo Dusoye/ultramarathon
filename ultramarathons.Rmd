@@ -1,5 +1,5 @@
 ---
-title: "Ultramarathon Analysis"
+title: "Trends in ultramarathon races"
 output:
   html_notebook: default
   github_document: defaultx
@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE,
 
 ## 1. Introduction
 
-### 1.1 Load and check data 
+### 1.1 Load and check data
 
 First let's load the required libraries and dataset
 
@@ -57,7 +57,7 @@ The participants with missing year of birth/age category doesn't appear to be co
 
 ### 1.2 Data cleaning
 
-Next we'll clean up some of the fields. First, I'm only going to be considering single stage events, so I'll be removing events such as Marathon des Sables (MAR). These can be identified as they contain "/" in the Event_distance/length field, for example "249km/6Etappen". 
+Next we'll clean up some of the fields. First, I'm only going to be considering single stage events, so I'll be removing events such as Marathon des Sables (MAR). These can be identified as they contain "/" in the Event_distance/length field, for example "249km/6Etappen".
 
 ```{r}
 data %>%
@@ -75,7 +75,7 @@ data_clean <- data %>%
          race_location = str_replace_all(race_location, "[()]", "")) #location of race from event name
 ```
 
-The length of an ultramarathons is either set in distance (eg 100km) or time (eg 24h), and the Event_distance/length contains both of these types, so we'll flag these seperately and convert all distance length races into km from miles. 
+The length of an ultramarathons is either set in distance (eg 100km) or time (eg 24h), and the Event_distance/length contains both of these types, so we'll flag these seperately and convert all distance length races into km from miles.
 
 ```{r}
 data_clean %<>%
@@ -126,6 +126,7 @@ data_clean %<>%
 ```
 
 Finally let's drop the columns we no longer require.
+
 ```{r}
 data_clean %<>%
   dplyr::select(-c(Event_dates, `Event_distance/length`, Athlete_club, Athlete_performance))
@@ -133,7 +134,8 @@ data_clean %<>%
 ```
 
 ## 2. Data exploration
-### 2.1 Initial exploration
+
+### 2.1 Events exploration
 
 As we mentioned at the top, the dataset incudes results from 1798 to 2022 and includes races greater than 45km in length (or a performance of greater than 45km for a time based event) and doesn't include participants who did not finish the race. The dataset also includes a unique identifier for each participant, and so their performance can be tracked over multiple events.
 
@@ -172,9 +174,9 @@ data_clean %>%
   head(n = 10)
 ```
 
-We can also see that the average number of participants is also greater for distance based events than time based. The average participants for distance events peaked in the 1970s and has been trending down since, as new smaller races are being created. The peak for the number of athletes for time based events in comparison is only in the past 10 years, indicating that new timed events aren't being created as regularly than distance events in proportion to the increased demand in ultra running.
+The average number of participants is also greater for distance based events than time based. The average participants for distance events peaked in the 1970s and has been trending down since, as new smaller races are being created. The peak for the number of athletes for time based events in comparison is only in the past 10 years, indicating that new timed events aren't being created as regularly than distance events in proportion to the increased demand in ultra running.
 
-
+Significantly more individual athletes are also to be running multiple ultramarathons per year compared to 50 years ago. Although this appears to be trending back downwards in recent years for timed events, the trend is still upwards for distance based events. However there was a spike in the dataset for events during the late 1800's, which are largely due to a combination of a small sample set and athletes competing in multiple [6 day events](https://en.wikipedia.org/wiki/6_Day_Race), which also include splits every 24 hours.
 
 ```{r}
 data_clean %>%
@@ -199,4 +201,42 @@ data_clean %>%
 
 grid.arrange(avgathlete.p, avgrace.p, ncol = 1)
 ```
+
+A look at the individual events shows that Comrades Marathon (RSA) is the oldest ultramarathon that is still being run today, with the first Down Run being in 1921 and there being 47 Down Runs and 48 Up Runs since and each seeing over 220k finishers.
+
+```{r}
+data_clean %>%
+  select(Year_of_event, Event_name) %>%
+  group_by(Event_name) %>%
+  summarise(first_event = min(Year_of_event),
+            last_event = max(Year_of_event),
+            event_count = length(unique(paste0(Year_of_event,Event_name))),
+            athlete_count = n()) %>%
+  filter(last_event >= 2019) %>% arrange(first_event)
+```
+
+Comrades also dominates for number of participants, along with Two Oceans Marathon (also in South Africa), seeing 20,027 finishers in 2000. The highest placed non-South African race was the La SaintéLyon 72 km (FRA) in 2017 which had 5,787 finishers.
+
+```{r}
+data_clean %>%
+  distinct(Year_of_event, Event_name, Event_number_of_finishers) %>%
+  arrange(desc(Event_number_of_finishers)) %>%
+  head(n = 10)
+```
+
+
+We can see that there appears to have been a big uptick in participation since 1950, which is clarified by taking a look at a chart of the log of the number of events, so further analysis will be taken from 1950 onwards.
+
+```{r}
+data_clean %>%
+    group_by(Year_of_event, race_type) %>%
+    distinct(Event_name, race_type) %>% 
+    count(Year_of_event, race_type) %>%
+    ggplot(aes(x = Year_of_event, y = log(n), colour = race_type)) +
+    theme_minimal() +
+    geom_point() +
+    scale_y_continuous(labels = comma) +
+    ggtitle('Log of number of events per year') 
+```
+
 

@@ -301,3 +301,32 @@ data %>%
             perc_missing = missing/n()) %>% 
   arrange(desc(missing)) %>%
   head(n = 20)
+
+
+data_clean %>%
+  select(Year_of_event, Event_name) %>%
+  group_by(Event_name) %>%
+  summarise(first_event = min(Year_of_event),
+            last_event = max(Year_of_event),
+            event_count = length(unique(paste0(Year_of_event,Event_name))),
+            athlete_count = n(),
+            average_athletes = athlete_count/event_count) %>%
+  View()
+
+data_clean %>%
+  distinct(Year_of_event, Event_name, Event_number_of_finishers) %>%
+  arrange(desc(Event_number_of_finishers)) %>%
+  head(n = 10)
+
+data_clean %>%
+  distinct(Year_of_event, Event_name, race_location, Event_number_of_finishers) %>%
+  group_by(race_location) %>%
+  summarise(first_event = min(Year_of_event),
+            different_events = length(unique(Event_name)),
+            total_events = n(),
+            total_athletes = sum(Event_number_of_finishers)) %>%
+  arrange(desc(total_athletes))
+
+
+
+
