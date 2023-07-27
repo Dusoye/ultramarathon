@@ -325,7 +325,8 @@ data_clean %>%
             different_events = length(unique(Event_name)),
             total_events = n(),
             total_athletes = sum(Event_number_of_finishers)) %>%
-  arrange(desc(total_athletes))
+  arrange(desc(total_athletes)) %>%
+  head(n = 10)
 
 
 

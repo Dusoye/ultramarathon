@@ -2,12 +2,15 @@
 title: "Trends in ultramarathon races"
 output:
   html_notebook: default
-  github_document: defaultx
+  github_document: default
 ---
 
 ```{r, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
-                      warning = FALSE)
+                      warning = FALSE,
+                      message = FALSE)
+
+options(dplyr.summarise.inform = FALSE)
 ```
 
 ## 1. Introduction
@@ -22,6 +25,7 @@ library(dplyr)
 library(magrittr)
 library(ggplot2)
 library(gridExtra)
+library(scales)
 library(stringr)
 library(tidyr)
 library(lubridate)
@@ -141,7 +145,7 @@ As we mentioned at the top, the dataset incudes results from 1798 to 2022 and in
 
 We split the races into time based and distance based events, and we can see below how the number of both events and participants running ultramarathons has increased dramatically in recent years, asides from a recent reduction caused by pandemic related cancellations.
 
-```{r, message=FALSE}
+```{r}
 data_clean %>%
   group_by(Year_of_event, race_type) %>%
   distinct(Event_name, race_type) %>% 
@@ -212,7 +216,9 @@ data_clean %>%
             last_event = max(Year_of_event),
             event_count = length(unique(paste0(Year_of_event,Event_name))),
             athlete_count = n()) %>%
-  filter(last_event >= 2019) %>% arrange(first_event)
+  filter(last_event >= 2019) %>% 
+  arrange(first_event) %>%
+  head(n = 20)
 ```
 
 Comrades also dominates for number of participants, along with Two Oceans Marathon (also in South Africa), seeing 20,027 finishers in 2000. The highest placed non-South African race was the La SaintéLyon 72 km (FRA) in 2017 which had 5,787 finishers.
@@ -224,6 +230,19 @@ data_clean %>%
   head(n = 10)
 ```
 
+Although two South African races dominiate in terms of number of runners every year, the USA hosts by far the largest number of events, both in terms of overall events in the dataset as well as the number of different events. There have been over 6,000 different events held in the USA, compared to just 267 in South Africa. France has the second highest number of races.
+
+```{r}
+data_clean %>%
+  distinct(Year_of_event, Event_name, race_location, Event_number_of_finishers) %>%
+  group_by(race_location) %>%
+  summarise(first_event = min(Year_of_event),
+            different_events = length(unique(Event_name)),
+            total_events = n(),
+            total_athletes = sum(Event_number_of_finishers)) %>%
+  arrange(desc(total_athletes)) %>%
+  head(n = 10)
+```
 
 We can see that there appears to have been a big uptick in participation since 1950, which is clarified by taking a look at a chart of the log of the number of events, so further analysis will be taken from 1950 onwards.
 
@@ -238,5 +257,3 @@ data_clean %>%
     scale_y_continuous(labels = comma) +
     ggtitle('Log of number of events per year') 
 ```
-
-
