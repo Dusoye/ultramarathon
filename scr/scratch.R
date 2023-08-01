@@ -330,4 +330,25 @@ data_clean %>%
 
 
 
+# athletes
 
+data_clean %>%
+  filter(Year_of_event >= 1950) %>%
+  group_by(Athlete_country) %>%
+  summarise(athlete_count = length(unique(Athlete_ID)),
+            total_finishers = n()) %>%
+  add_row(Athlete_country = 'Total', 
+          athlete_count = sum(.$athlete_count),
+          total_finishers = sum(.$total_finishers)) %>%
+  mutate(avg_races = total_finishers/athlete_count) %>%
+  arrange(desc(athlete_count)) %>%
+  head(n = 11)
+
+data_clean_1950 %>%
+  group_by(Athlete_ID) %>%
+  summarise(race_count = n()) %>%
+  arrange(desc(race_count))
+
+data_clean_1950 %>%
+  filter(Athlete_ID == 236) %>%
+  View()

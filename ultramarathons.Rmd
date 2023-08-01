@@ -59,6 +59,12 @@ data %>%
 
 The participants with missing year of birth/age category doesn't appear to be concentrated in a particular event or year. The count of these is the highest in the most recent years, but with a low overall percentage of missing fields due to higher overall participation numbers. Something to consider when analysing age or participants.
 
+There are also almost 1,800 entries that have Country = 'XXX' and Athlete_ID = 4033, with different genders and age categories, which need to be taken into consideration when analysing individual athlete results. The race results for these athletes appear to be correct though, so we'll leave them in the dataset.
+
+```{r}
+filter(data, Athlete_country =='XXX') %>% count(Athlete_country, Athlete_ID)
+```
+
 ### 1.2 Data cleaning
 
 Next we'll clean up some of the fields. First, I'm only going to be considering single stage events, so I'll be removing events such as Marathon des Sables (MAR). These can be identified as they contain "/" in the Event_distance/length field, for example "249km/6Etappen".
@@ -129,17 +135,18 @@ data_clean %<>%
   ) 
 ```
 
-Finally let's drop the columns we no longer require.
+Finally let's drop the columns we no longer require and take a look at what the new dataset looks like.
 
 ```{r}
 data_clean %<>%
   dplyr::select(-c(Event_dates, `Event_distance/length`, Athlete_club, Athlete_performance))
 
+head(data_clean)
 ```
 
 ## 2. Data exploration
 
-### 2.1 Events exploration
+### 2.1 Events
 
 As we mentioned at the top, the dataset incudes results from 1798 to 2022 and includes races greater than 45km in length (or a performance of greater than 45km for a time based event) and doesn't include participants who did not finish the race. The dataset also includes a unique identifier for each participant, and so their performance can be tracked over multiple events.
 
@@ -239,7 +246,7 @@ data_clean %>%
   summarise(first_event = min(Year_of_event),
             different_events = length(unique(Event_name)),
             total_events = n(),
-            total_athletes = sum(Event_number_of_finishers)) %>%
+            total_finishers = sum(Event_number_of_finishers)) %>%
   arrange(desc(total_athletes)) %>%
   head(n = 10)
 ```
@@ -257,3 +264,27 @@ data_clean %>%
     scale_y_continuous(labels = comma) +
     ggtitle('Log of number of events per year') 
 ```
+
+```{r}
+data_clean_1950 <- data_clean %>% filter(Year_of_event >= 1950)
+```
+
+## Athletes
+
+The 7.4m race results have been obtained by 1.7m athletes, with the potential data issues mentioned in part 1.1 being negligible. USA make up the majority of both number of athletes and total finishers, followed by France and Japan. The average South African runner has completed 6.6 races, the highest amongst the major nations, driven by repeated completions of Comrades and Two Oceans.
+
+```{r}
+data_clean_1950 %>%
+  group_by(Athlete_country) %>%
+  summarise(athlete_count = length(unique(Athlete_ID)),
+            total_finishers = n()) %>%
+  add_row(Athlete_country = 'Total', 
+          athlete_count = sum(.$athlete_count),
+          total_finishers = sum(.$total_finishers)) %>%
+  mutate(avg_races = total_finishers/athlete_count) %>%
+  arrange(desc(athlete_count)) %>%
+  head(n = 11)
+```
+
+
+
