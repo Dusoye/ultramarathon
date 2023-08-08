@@ -329,7 +329,6 @@ data_clean %>%
   head(n = 10)
 
 
-
 # athletes
 
 data_clean %>%
@@ -351,4 +350,50 @@ data_clean_1950 %>%
 
 data_clean_1950 %>%
   filter(Athlete_ID == 236) %>%
+  mutate(race_distance = paste0(race_distance, "_", race_unit)) %>%
+  count(Year_of_event, race_location) %>%
+  arrange(desc(Year_of_event))
+
+
+data_clean_1950 %>%
+  filter(Athlete_ID == 236) %>%
+  mutate(race_distance = paste0(race_distance, " ", race_unit)) %>%
+  count(race_distance) %>%
+  arrange(desc(n))
+
+data_clean_1950 %>%
+  mutate(race_distance = paste0(race_distance, race_unit)) %>%
+  filter(race_distance %in% c('50km','100km','50m','100m')) %>%
+  group_by(Year_of_event, race_distance) %>%
+  summarise(quickest_time = as.duration(min(athlete_duration)),
+            average_time = mean(athlete_duration)) %>% 
+  ggplot(aes(x = Year_of_event, y = quickest_time/(60*60), colour = race_distance)) +
+  geom_line() +
+  theme_minimal() +
+  ylab('time (h)') +
+  ggtitle('fastest time')
+  
+
+data_clean_1950 %>%
+  mutate(race_distance = paste0(race_distance, race_unit)) %>%
+  filter(race_distance %in% c('50km','100km','50m','100m')) %>%
+  group_by(Year_of_event, race_distance) %>%
+  summarise(quickest_time = as.duration(min(athlete_duration)),
+            average_time = mean(athlete_duration)) %>% 
+  ggplot(aes(x = Year_of_event, y = average_time/(60*60), colour = race_distance)) +
+  geom_line() +
+  theme_minimal() +
+  ylab('time (h)') +
+  ggtitle('average time')
+
+library(finalfit)
+ff_glimpse(data)
+missing_plot(data)
+missing_pattern(data_clean)
+
+data_clean %>%
+  mutate(speed = if_else(race_type == 'distance', distance_km/(as.numeric(athlete_duration) / (60 * 60)),
+                         athlete_distance * if_else(athlete_units == 'km',1,1.62) / (race_distance * if_else(race_unit == 'd', 24, 1))),
+         speed_error = if_else(speed >= 20 | athlete_duration == 0, TRUE, FALSE)) %>%
+  arrange(desc(speed)) %>%
   View()

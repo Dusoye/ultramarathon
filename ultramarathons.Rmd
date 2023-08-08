@@ -59,15 +59,15 @@ data %>%
 
 The participants with missing year of birth/age category doesn't appear to be concentrated in a particular event or year. The count of these is the highest in the most recent years, but with a low overall percentage of missing fields due to higher overall participation numbers. Something to consider when analysing age or participants.
 
-There are also almost 1,800 entries that have Country = 'XXX' and Athlete_ID = 4033, with different genders and age categories, which need to be taken into consideration when analysing individual athlete results. The race results for these athletes appear to be correct though, so we'll leave them in the dataset.
+### 1.2 Data cleaning
+
+Next we'll clean up some of the fields. There are also almost 1,800 entries that have Country = 'XXX' and Athlete_ID = 4033, with different genders and age categories, which need to be taken into consideration when analysing individual athlete results. The race results for these athletes appear to be correct though, so we'll leave them in the dataset.
 
 ```{r}
 filter(data, Athlete_country =='XXX') %>% count(Athlete_country, Athlete_ID)
 ```
 
-### 1.2 Data cleaning
-
-Next we'll clean up some of the fields. First, I'm only going to be considering single stage events, so I'll be removing events such as Marathon des Sables (MAR). These can be identified as they contain "/" in the Event_distance/length field, for example "249km/6Etappen".
+I'm only going to be considering single stage events, so I'll be removing events such as Marathon des Sables (MAR). These can be identified as they contain "/" in the Event_distance/length field, for example "249km/6Etappen".
 
 ```{r}
 data %>%
@@ -133,6 +133,23 @@ data_clean %<>%
          time = NULL,
          numeric_string = NULL
   ) 
+
+summary(data_clean)
+```
+
+Now the data is correctly formatted, a glimpse at the fields shows there are some potential issues. For example there are a number of entries when the time recorded is 0, also the youngest person is -30 years old and there is someone who is apparently born in 1193. There are also races which have 0 indicated as the number of finishers, which clearly can't be the case if there are finishers in the dataset. The Athlete_average_speed field also doesn't appear to be consistent with the maximum being 28,302 and median 7.3. 
+
+Calculating the speed ourselves using the duration or distance the athlete has taken against the race distance shows a number that have run quicker than world record road marathon pace, which is likely to be incorrect. Digging into a few of these results suggests occasions when an athletes performance has been submitted into the incorrect race, for example if there is a 25k race along side a 50k race and the result of a 25k participant being placed under 50k. Similar to [a paper investigating trends in 100-mile races](https://doi.org/10.1038/s41598-023-28398-2), I'll exclude results that are quicker than 20k/h which are likely to be incorrect, along with those of duration 0. There are 298 such results.
+
+There are also a few instances when the incorrect distance is recorded, for example for 'Pigtails Challenge 100 Km (USA)' being listed as 100 miles, leading to some abnormally quick times. There are likely to be other races with incorrect distances labelled, but this one stood out due to having the only record of someone running 100 miles in under 10 hours.
+
+```{r}
+data_clean %<>%
+  mutate(race_unit = if_else(Event_name == 'Pigtails Challenge 100 Km (USA)', 'km', race_unit),
+         distance_km = if_else(Event_name == 'Pigtails Challenge 100 Km (USA)', 100, distance_km)) %>%
+  mutate(speed = if_else(race_type == 'distance', distance_km/(as.numeric(athlete_duration) / (60 * 60)),
+                         athlete_distance / (race_distance * if_else(race_unit == 'd', 24, 1)))) %>%
+  filter(speed < 20) 
 ```
 
 Finally let's drop the columns we no longer require and take a look at what the new dataset looks like.
@@ -247,7 +264,7 @@ data_clean %>%
             different_events = length(unique(Event_name)),
             total_events = n(),
             total_finishers = sum(Event_number_of_finishers)) %>%
-  arrange(desc(total_athletes)) %>%
+  arrange(desc(total_finishers)) %>%
   head(n = 10)
 ```
 
@@ -269,7 +286,7 @@ data_clean %>%
 data_clean_1950 <- data_clean %>% filter(Year_of_event >= 1950)
 ```
 
-## Athletes
+### 2.2 Athletes
 
 The 7.4m race results have been obtained by 1.7m athletes, with the potential data issues mentioned in part 1.1 being negligible. USA make up the majority of both number of athletes and total finishers, followed by France and Japan. The average South African runner has completed 6.6 races, the highest amongst the major nations, driven by repeated completions of Comrades and Two Oceans.
 
@@ -283,8 +300,68 @@ data_clean_1950 %>%
           total_finishers = sum(.$total_finishers)) %>%
   mutate(avg_races = total_finishers/athlete_count) %>%
   arrange(desc(athlete_count)) %>%
-  head(n = 11)
+  head(n = 10)
 ```
 
+After removing Athlete_ID 4033, Athlete 236 appears to have run the most number of ultramarathons in the world, totalling 801.
 
+```{r}
+data_clean_1950 %>%
+  filter(Athlete_ID != 4033) %>%
+  group_by(Athlete_ID) %>%
+  summarise(race_count = n()) %>%
+  arrange(desc(race_count)) %>%
+  head(n = 10)
+```
+
+This runner completed their first ultramarathon in 2006 but has significantly increased his volume in the past few years, completing 118 in 2022, with almost all of the races taking place in TPE. The overwhelming majority of these races are under 50km, with 45km being the most frequent distance completed which is the shortest distance required to be recorded on the dataset.
+
+```{r}
+data_clean_1950 %>%
+  filter(Athlete_ID == 236) %>%
+  count(Year_of_event, race_location) %>%
+  arrange(desc(Year_of_event))
+
+data_clean_1950 %>%
+  filter(Athlete_ID == 236) %>%
+  mutate(race_distance = paste0(race_distance, race_unit)) %>%
+  count(race_distance) %>%
+  arrange(desc(n)) %>%
+  head(n = 10)
+```
+The fastest times for the most popular race distances saw a steady decline between the 1960's to 1908's as the popularity grew, and has seen a more gradual decline since. The two fastest times for 100 miles were in 2022 and 2021 by Aleksandr Sorokin, as well as the fastest 50km times being run in 2022. The 50m and 100km both saw their quickest times set in the 1990's
+
+```{r}
+data_clean_1950 %>%
+  mutate(race_distance = paste0(race_distance, race_unit)) %>%
+  filter(race_distance %in% c('50km','100km','50m','100m')) %>%
+  group_by(Year_of_event, race_distance) %>%
+  summarise(quickest_time = as.duration(min(athlete_duration)),
+            average_time = mean(athlete_duration)) %>% 
+  ggplot(aes(x = Year_of_event, y = quickest_time/(60*60), colour = race_distance)) +
+  geom_line() +
+  theme_minimal() +
+  ylab('time (h)') +
+  ggtitle('fastest time') -> fast.time.p
+  
+plot(fast.time.p)
+```
+
+Although the fastest times have generally been trending quicker, the average times have been increasing since the 1980's for 50km, 50m and 100m races, and increasing since the 1990's for 100km. This is likely to be due to the increased participation rates; as a large range of people are setting themselves the challenge of completing an ultramarathon rather than just those who are setting out to win. It may also be due to races getting harder; with athletes pushing themselves to greater extremes in terms of elevation for a given distance.
+
+```{r}
+data_clean_1950 %>%
+  mutate(race_distance = paste0(race_distance, race_unit)) %>%
+  filter(race_distance %in% c('50km','100km','50m','100m')) %>%
+  group_by(Year_of_event, race_distance) %>%
+  summarise(quickest_time = as.duration(min(athlete_duration)),
+            average_time = mean(athlete_duration)) %>% 
+  ggplot(aes(x = Year_of_event, y = average_time/(60*60), colour = race_distance)) +
+  geom_line() +
+  theme_minimal() +
+  ylab('time (h)') +
+  ggtitle('average time') -> avg.time.p
+
+plot(avg.time.p)
+```
 
