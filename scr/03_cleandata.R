@@ -6,10 +6,11 @@ data.prep <- function(data){
     select(-c(Event_dates,  Athlete_club)) #columns not required
 }
 
+#extract key info about event transform columns
 race.details <- function(data){
   dataout <- data %>%
     mutate(race_location = str_extract(Event_name, "\\(([^()]*)\\)(?![^()]*\\()"), 
-           race_location = str_replace_all(race_location, "[()]", ""),
+           race_location = str_replace_all(race_location, "[()]", ""), 
            race_distance = as.numeric(str_extract(`Event_distance/length`, "[0-9.]+")),
            race_unit = tolower(str_extract(`Event_distance/length`, "[a-zA-Z]+")),
            race_distance = as.numeric(race_distance),
@@ -23,6 +24,7 @@ race.details <- function(data){
   return(dataout)
 }
 
+#extract info about individual athletes
 athlete.details <- function(data){
   dataout <- data %>%
     mutate(numeric_string = str_extract(Athlete_performance, "\\d+[:d.]+\\d+[:.]*\\d*"),
@@ -47,11 +49,33 @@ athlete.details <- function(data){
   return(dataout)
 }
 
+# function to correct/exclude inconsistencies
+amend.errors <- function(data){
+  dataout <- data %>%
+    # this event has miles as race unit rather than km
+    mutate(race_unit = if_else(Event_name == 'Pigtails Challenge 100 Km (USA)', 'km', race_unit),
+           distance_km = if_else(Event_name == 'Pigtails Challenge 100 Km (USA)', 100, distance_km)) %>%
+    # exlude small amount of performances with highly unlikely speed data
+    mutate(speed = if_else(race_type == 'distance', distance_km/(as.numeric(athlete_duration) / (60 * 60)),
+                           athlete_distance / (race_distance * if_else(race_unit == 'd', 24, 1)))) %>%
+    filter(speed < 20)
+  
+  return(dataout)
+}
+
+drop.columns <- function(data, cols){
+  dataout <- data %>%
+    select(-cols)
+  
+  return(dataout)
+}
 
 data.clean <- function(data){
   dataout <- data.prep(data) 
   dataout <- race.details(dataout)
   dataout <- athlete.details(dataout)
+  dataout <- amend.errors(dataout)
+  dataout <- drop.columns(dataout, c(Event_dates, `Event_distance/length`, Athlete_club, Athlete_performance))
   
   return(dataout)
 }

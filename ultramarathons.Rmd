@@ -1,5 +1,5 @@
 ---
-title: "Trends in ultramarathon races"
+title: "Exploring ultramarathon dataset"
 output:
   html_notebook: default
   github_document: default
