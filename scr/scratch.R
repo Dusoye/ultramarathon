@@ -113,12 +113,16 @@ data_clean %>%
   group_by(race_location) %>%
   summarise(event_count = n_distinct(Event_name),
             female_percent = sum(if_else(Athlete_gender == 'F', n, 0)) / sum(n)) %>% 
+  ungroup() %>%
   filter(event_count > 1) %>%
-  arrange(desc(female_percent)) 
+  arrange(desc(female_percent)) %>%
+  mutate(n = row_number()) %>% 
+  filter(n < 6 | n > (nrow(.) - 5)) %>%
+  dplyr::select(-n)
+  
 
-data_clean %>%
-  filter(Year_of_event >= 1950,
-         Athlete_gender %in% c('M','F'),
+data_clean_1950 %>%
+  filter(Athlete_gender %in% c('M','F'),
          race_location %in% c('FRA','ESP','USA','GBR','GER','ITA')) %>%
   count(Year_of_event, Athlete_gender, race_location) %>%
   group_by(Year_of_event, race_location) %>%
@@ -130,6 +134,53 @@ data_clean %>%
   labs(x = 'year', y = 'percentage female') +
   ggtitle('Gender divide') +
   scale_y_continuous(labels = percent)
+
+
+gender_pace <- data_clean_1950 %>%
+  mutate(race_distance = paste0(race_distance, race_unit),
+         event = paste0(Year_of_event, '_', Event_name)) %>% 
+  filter(race_distance %in% c('50km','100km','50m','100m'),
+         Athlete_gender %in% c('F','M')) %>% 
+  group_by(Year_of_event, race_distance, event, Athlete_gender) %>%
+  summarise(fastest_time = min(athlete_duration),
+            average_time = mean(athlete_duration)) %>%
+  pivot_wider(names_from = Athlete_gender, values_from = c(fastest_time, average_time)) %>%
+  mutate(fastest_diff = (fastest_time_F - fastest_time_M)/fastest_time_M,
+         average_diff = (average_time_F - average_time_M)/average_time_M) %>%
+  ungroup()
+
+gender_pace %>% 
+  mutate(female_winner = if_else(fastest_time_F < fastest_time_M,1,0)) %>% View()
+  group_by(Year_of_event) %>%
+  summarise(female_winners = sum(female_winner, na.rm = TRUE),
+            female_winners_perc = female_winners/n()) %>% View()
+  ggplot(aes(x = Year_of_event, y = female_winners_perc)) +
+  geom_bar(stat = 'identity') +
+  theme_minimal() +
+  scale_y_continuous(labels = percent) +
+  ggtitle('percent of races with female winner')
+
+gender_pace %>%
+  group_by(Year_of_event, race_distance) %>%
+  summarise(fastest_diff = mean(fastest_diff, na.rm = TRUE),
+            average_diff = mean(average_diff, na.rm = TRUE)) %>% 
+  ggplot(aes(x = Year_of_event, y = fastest_diff, colour = race_distance)) +
+  geom_line() +
+  theme_minimal() +
+  ylab('percentage') +
+  scale_y_continuous(labels = percent) +
+  ggtitle('percentage difference of winning female to male finishing time') -> fast.female.p
+
+gender_pace %>%
+  group_by(Year_of_event, race_distance) %>%
+  summarise(fastest_diff = mean(fastest_diff, na.rm = TRUE),
+            average_diff = mean(average_diff, na.rm = TRUE)) %>% 
+  ggplot(aes(x = Year_of_event, y = average_diff, colour = race_distance)) +
+  geom_line() +
+  theme_minimal() +
+  ylab('percentage') +
+  scale_y_continuous(labels = percent) +
+  ggtitle('percentage difference of average female to male finishing time') -> avg.female.p
 
 data_clean %>%
   filter(Year_of_event >= 1950,

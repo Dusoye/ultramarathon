@@ -234,7 +234,7 @@ A look at the individual events shows that Comrades Marathon (RSA) is the oldest
 
 ```{r}
 data_clean %>%
-  select(Year_of_event, Event_name) %>%
+  dplyr::select(Year_of_event, Event_name) %>%
   group_by(Event_name) %>%
   summarise(first_event = min(Year_of_event),
             last_event = max(Year_of_event),
@@ -347,7 +347,7 @@ data_clean_1950 %>%
 plot(fast.time.p)
 ```
 
-Although the fastest times have generally been trending quicker, the average times have been increasing since the 1980's for 50km, 50m and 100m races, and increasing since the 1990's for 100km. This is likely to be due to the increased participation rates; as a large range of people are setting themselves the challenge of completing an ultramarathon rather than just those who are setting out to win. It may also be due to races getting harder; with athletes pushing themselves to greater extremes in terms of elevation for a given distance.
+Although the fastest times have generally been trending quicker, the average times have been increasing since the 1980's for 50km, 50m and 100m races, and increasing since the 1990's for 100km. This is likely to be due to the increased participation rates; as a large range of people are setting themselves the challenge of completing an ultramarathon rather than just those who are setting out to win. It may also be due more people attempting increasingly challenging ultramarathons in terms of elevation and other conditions.
 
 ```{r}
 data_clean_1950 %>%
@@ -365,3 +365,192 @@ data_clean_1950 %>%
 plot(avg.time.p)
 ```
 
+### 2.3 Gender
+
+Anyone who's been on the start line of a running race (ultramarathon or not) would be aware that the overwhelming majority of runners tend to be male. This is also apparent in this dataset with a little under 81% of runners identifying as male, 19% female with a negligible number of the entries being either 'other' or blank.
+
+```{r}
+data_clean_1950 %>%
+  count(Athlete_gender) %>%
+  mutate(proportion = percent(n/nrow(data_clean_1950)))
+```
+
+The good news is though that the trend is that this gap is decreasing, with the last few years seeing 23% of finishers being female globally. The chart below shows that there was a gradual increase in female runners during the 1960's & 70's, a bigger increase during the 80's and 90's with the trend slowing down since. 
+
+```{r}
+data_clean_1950 %>%
+  filter(Athlete_gender %in% c('M','F')) %>%
+  count(Year_of_event, Athlete_gender) %>%
+  group_by(Year_of_event) %>%
+  mutate(percent = n/sum(n)) %>%
+  ggplot(aes(x = Year_of_event, y = percent, fill = Athlete_gender)) +
+  geom_bar(stat = 'identity') +
+  theme_minimal() +
+  labs(x = 'year', y = 'percentage', fill = 'gender') +
+  ggtitle('Gender divide') +
+  scale_y_continuous(labels = percent)
+```
+
+We can use the segmented package to split the regressions for each of these different regime changes. This suggests breaks of 1986 and 1998
+
+```{r}
+# Dataframe for percentage of female runners per year
+female_perc <- data_clean_1950 %>%
+  filter(Athlete_gender %in% c('M','F')) %>%
+  count(Year_of_event, Athlete_gender) %>%
+  group_by(Year_of_event) %>%
+  mutate(percent = n/sum(n)) %>% 
+  filter(Athlete_gender == 'F')
+
+# segment the linear model
+lin.mod <- lm(percent ~ Year_of_event, data = female_perc)
+seg.mod <- segmented::segmented(lin.mod, seg.Z = ~Year_of_event, psi = c(1980, 2000))
+
+# Show the summary of the segmented model
+summary(seg.mod)
+```
+
+```{r}
+newdata <- data.frame(Year_of_event = seq(min(female_perc$Year_of_event), max(female_perc$Year_of_event), length.out = 100))
+
+# Generate predictions
+newdata$pred <- predict(seg.mod, newdata = newdata)
+
+# Plot the data and the regression line
+ggplot(female_perc, aes(x = Year_of_event, y = percent)) +
+  geom_point() +  # plot the data points
+  geom_line(data = newdata, aes(y = pred), colour = 'red') +  # plot the regression line
+  theme_minimal() +
+  ggtitle('Segmented linear regression of female participation')
+```
+Although it's good news that the percentage of females is increasing, the bad news is that it doesn't look like it'll get close to 50% any time soon based on current trends; as the chart below shows, extending the predicted changes until 2100.
+
+```{r}
+# Extend dataframe with future years
+future_years <- data.frame(Year_of_event = seq(max(female_perc$Year_of_event) + 1, max(female_perc$Year_of_event) + 80))
+
+# Predict proportions for future years
+future_years$percent <- predict(seg.mod, newdata = future_years, type = "response")
+future_years$source <- 'predicted'
+
+# Combine past data with future predictions
+data_clean %>%
+  filter(Year_of_event >= 1950,
+         Athlete_gender %in% c('M','F')) %>%
+  count(Year_of_event, Athlete_gender) %>%
+  group_by(Year_of_event) %>%
+  mutate(percent = n/sum(n)) %>% 
+  filter(Athlete_gender == 'F') %>%
+  mutate(source = 'observed') %>%
+  dplyr::select(Year_of_event, percent, source) %>% 
+  rbind(., future_years) %>%
+  mutate(Male = 1-percent,
+         Female = percent) %>% 
+  dplyr::select(-percent) %>%
+  pivot_longer(cols = c('Male', 'Female'), names_to = 'Gender', values_to = 'percent') %>% 
+  mutate(gender_source = paste0(substr(Gender,1,1),'_', source)) %>%
+  ggplot(aes(x = Year_of_event, y = percent, fill = gender_source)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("F_observed" = "#F8766D", "M_observed" = "#00BFC4", 
+                               "F_predicted" = "#FFCCCC", "M_predicted" = "#33FFFF")) +
+  theme_minimal() 
+```
+
+As can be expected, some countries have far higher female participation than others. A look at the top and bottom 5 countries in the past 5 years (that have more than 1 event) shows New Zealand, Iceland, USA, Finland and Australia all with over 33%, while on the other side, Pakistan, Kosovo, Andorra, India and Spain have the lowest percentages of 11% and lower.
+
+```{r}
+# highest & lowest female participation
+data_clean_1950 %>%
+  filter(Year_of_event >= 2017,
+         Athlete_gender %in% c('M','F')) %>%
+  group_by(Athlete_gender, race_location, Event_name) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(race_location) %>%
+  summarise(event_count = n_distinct(Event_name),
+            female_percent = sum(if_else(Athlete_gender == 'F', n, 0)) / sum(n)) %>% 
+  ungroup() %>%
+  filter(event_count > 1) %>%
+  arrange(desc(female_percent)) %>%
+  mutate(n = row_number(),
+         female_percent = percent(female_percent)) %>% 
+  filter(n < 6 | n > (nrow(.) - 5)) %>%
+  dplyr::select(-n)
+```
+
+A look at the major nations shows that the USA has been leading the pack for a while, with GBR in second.
+
+```{r}
+data_clean_1950 %>%
+  filter(Athlete_gender %in% c('M','F'),
+         race_location %in% c('FRA','ESP','USA','GBR','GER','ITA')) %>%
+  count(Year_of_event, Athlete_gender, race_location) %>%
+  group_by(Year_of_event, race_location) %>%
+  mutate(percent = n/sum(n)) %>% 
+  filter(Athlete_gender == 'F') %>%
+  ggplot(aes(x = Year_of_event, y = percent, colour = race_location)) +
+  geom_line() +
+  theme_minimal() +
+  labs(x = 'year', y = 'percentage female') +
+  ggtitle('Gender divide') +
+  scale_y_continuous(labels = percent)
+```
+
+One thing that is apparent is the gap between the fastest males and females is closing, with the average fastest male finishing time now around 22% faster than the female finish time for each of the major race distances. The average time of female finishers to males is also decreasing.
+
+```{r}
+gender_pace <- data_clean_1950 %>%
+  mutate(race_distance = paste0(race_distance, race_unit),
+         event = paste0(Year_of_event, '_', Event_name)) %>% 
+  filter(race_distance %in% c('50km','100km','50m','100m'),
+         Athlete_gender %in% c('F','M')) %>% 
+  group_by(Year_of_event, race_distance, event, Athlete_gender) %>%
+  summarise(fastest_time = min(athlete_duration),
+            average_time = mean(athlete_duration)) %>%
+  pivot_wider(names_from = Athlete_gender, values_from = c(fastest_time, average_time)) %>%
+  mutate(fastest_diff = (fastest_time_F - fastest_time_M)/fastest_time_M,
+         average_diff = (average_time_F - average_time_M)/average_time_M) %>%
+  ungroup()
+
+gender_pace %>%
+  group_by(Year_of_event, race_distance) %>%
+  summarise(fastest_diff = mean(fastest_diff, na.rm = TRUE),
+            average_diff = mean(average_diff, na.rm = TRUE)) %>% 
+  ggplot(aes(x = Year_of_event, y = fastest_diff, colour = race_distance)) +
+  geom_line() +
+  theme_minimal() +
+  ylab('percentage') +
+  scale_y_continuous(labels = percent) +
+  ggtitle('percentage difference of winning female to male finishing time') -> fast.female.p
+
+gender_pace %>%
+  group_by(Year_of_event, race_distance) %>%
+  summarise(fastest_diff = mean(fastest_diff, na.rm = TRUE),
+            average_diff = mean(average_diff, na.rm = TRUE)) %>% 
+  ggplot(aes(x = Year_of_event, y = average_diff, colour = race_distance)) +
+  geom_line() +
+  theme_minimal() +
+  ylab('percentage') +
+  scale_y_continuous(labels = percent) +
+  ggtitle('percentage difference of average female to male finishing time') -> avg.female.p
+
+grid.arrange(fast.female.p, avg.female.p, ncol = 1)
+```
+
+There is also a growing percentage of races that are being won outright by female runners, seeing 7.6% of female winners in 2022.
+
+```{r}
+gender_pace %>% 
+  mutate(female_winner = if_else(fastest_time_F < fastest_time_M,1,0)) %>%
+  group_by(Year_of_event) %>%
+  summarise(female_winners = sum(female_winner, na.rm = TRUE),
+            female_winners_perc = female_winners/n()) %>%
+  ggplot(aes(x = Year_of_event, y = female_winners_perc)) +
+  geom_bar(stat = 'identity') +
+  theme_minimal() +
+  scale_y_continuous(labels = percent) +
+  ggtitle('percent of races with female winner')
+```
+
+### 2.4 Age
+
+## 3 Conclusion
