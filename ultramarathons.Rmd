@@ -372,7 +372,7 @@ Anyone who's been on the start line of a running race (ultramarathon or not) wou
 ```{r}
 data_clean_1950 %>%
   count(Athlete_gender) %>%
-  mutate(proportion = percent(n/nrow(data_clean_1950)))
+  mutate(proportion = percent(n/nrow(data_clean_1950), accuracy = 0.01))
 ```
 
 The good news is though that the trend is that this gap is decreasing, with the last few years seeing 23% of finishers being female globally. The chart below shows that there was a gradual increase in female runners during the 1960's & 70's, a bigger increase during the 80's and 90's with the trend slowing down since. 
@@ -472,12 +472,12 @@ data_clean_1950 %>%
   filter(event_count > 1) %>%
   arrange(desc(female_percent)) %>%
   mutate(n = row_number(),
-         female_percent = percent(female_percent)) %>% 
+         female_percent = percent(female_percent, accuracy = 0.01)) %>% 
   filter(n < 6 | n > (nrow(.) - 5)) %>%
   dplyr::select(-n)
 ```
 
-A look at the major nations shows that the USA has been leading the pack for a while, with GBR in second.
+A look at the major nations shows that the USA has been leading the pack for a while, with GBR in second. Races in Spain and France have a long way to go to catch up.
 
 ```{r}
 data_clean_1950 %>%
@@ -550,6 +550,7 @@ gender_pace %>%
   scale_y_continuous(labels = percent) +
   ggtitle('percent of races with female winner')
 ```
+
 
 ### 2.4 Age
 
