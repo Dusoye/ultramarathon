@@ -300,7 +300,7 @@ data_clean_1950 %>%
   count(Year_of_event, race_location) %>%
   ggplot(aes(x = Year_of_event, y = n, fill = race_location)) +
   theme_minimal() +
-  geom_bar(stat = 'identity', position = position_dodge(width = 0)) +
+  geom_point() +
   ggtitle('nationalities per race')
 
 data_clean_1950 %>%
@@ -331,11 +331,13 @@ data_clean %>%
   count(Year_of_event, Event_name, race_location) %>%
   arrange(desc(n)) %>% head(n = 20)
 
-utmb <- distinct(data_clean_1950, Event_name) %>% filter(Event_name %like% c('(CCC)','(UTMB)','(TDS)','(OCC)'))
+utmb <- c('Ultra Trail Tour du Mont Blanc (UTMB) (FRA)',
+          'Courmayeur-Champex-Chamonix (CCC) (ITA)',
+          'Orsières-Champex-Chamonix (OCC) (SUI)',
+          'Sur les Traces des Ducs de Savoie (TDS) (ITA)')
 
-data_clean %>%
-  filter(Event_name %in% utmb$Event_name,
-         Year_of_event >= 1950) %>%
+data_clean_1950 %>%
+  filter(Event_name %in% utmb) %>%
   mutate(foreign_race = if_else(Athlete_country %in% c('FRA', 'ITA', 'SUI'), 0, 1)) %>%
   group_by(Year_of_event, Event_name) %>% 
   summarise(foreign_participation = sum(foreign_race)/n()) %>% 
@@ -343,6 +345,19 @@ data_clean %>%
   theme_minimal() +
   geom_point() +
   ggtitle('foreign participation per race utmb')
+
+
+data_clean_1950 %>%
+  filter(Event_name %in% c('Comrades Marathon - Down Run (RSA)','Comrades Marathon - Up Run (RSA)'),
+         Year_of_event != 2022) %>%
+  mutate(foreign_race = if_else(Athlete_country == race_location, 0, 1)) %>%
+  group_by(Year_of_event, Event_name) %>% 
+  summarise(foreign_participation = sum(foreign_race)/n()) %>% 
+  ggplot(aes(x = Year_of_event, y = foreign_participation, colour = Event_name)) +
+  theme_minimal() +
+  geom_point() +
+  ggtitle('foreign participation per Comrades race') +
+  scale_y_continuous(labels = percent)
 
 data_clean %>%
   mutate(location = if_else(race_location == 'GER', 'GER','RoW')) %>%

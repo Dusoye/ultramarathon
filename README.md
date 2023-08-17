@@ -906,9 +906,11 @@ A look at the major nations shows that the USA has been leading the pack
 for a while, with GBR in second. Races in Spain and France have a long
 way to go to catch up.
 
+    race_locations <- c('FRA','ESP','USA','GBR','GER','ITA','RSA')
+
     data_clean_1950 %>%
       filter(Athlete_gender %in% c('M','F'),
-             race_location %in% c('FRA','ESP','USA','GBR','GER','ITA')) %>%
+             race_location %in% race_locations) %>%
       count(Year_of_event, Athlete_gender, race_location) %>%
       group_by(Year_of_event, race_location) %>%
       mutate(percent = n/sum(n)) %>% 
@@ -984,5 +986,137 @@ by female runners, seeing 7.6% of female winners in 2022.
 ![](ultramarathons_files/figure-markdown_strict/unnamed-chunk-34-1.png)
 
 ### 2.4 Age
+
+Along with the increased participation of female athletes, the age
+ranges of athletes has also diversified. As mentioned previously, the
+age categories differ based on race location, so the chart below just
+slices the ages into 5 year buckets. The increase in participants over
+30 has progressively increased since the 60’s, together with a decline
+in runners below 25, with runners under 20 almost vanishing; falling
+from a high of 18% in the 1960’s to under 0.5% for the past few years.
+
+    age_groups = data.frame(age_breaks = c(0,seq.int(20,70, by = 5), Inf))
+
+    data_clean_1950 %>%
+      mutate(age_group = cut(athlete_age, age_groups$age_breaks)) %>%
+      count(Year_of_event, age_group) %>%
+      filter(complete.cases(.)) %>% 
+      ungroup() %>% group_by(Year_of_event) %>%
+      mutate(percent = n/sum(n)) %>%
+      ggplot(aes(x = Year_of_event, y = percent, fill = age_group)) +
+      geom_bar(stat = 'identity') +
+      theme_minimal() +
+      ggtitle('athlete ages')
+
+![](ultramarathons_files/figure-markdown_strict/unnamed-chunk-35-1.png)
+
+### 2.5 Nationality
+
+The number of different nationalities per race continues to grow each
+year, although presumably this trend will stop at some point as every
+nationality is accounted for. This increase is likely to be due to
+athletes willing to travel further to run races than previously. It is
+possible that the increase is due to residents in each of these
+countries who are of a different nationality being picked up with the
+general increase in participation, but given that GBR tends to see the
+fewest runners of different nationalities, this is unlikely to be the
+case. It’s more likely that GBR has fewer ‘prestigious’ races compared
+to races in USA or France.
+
+    data_clean_1950 %>%
+      filter(race_location %in% race_locations) %>%
+      group_by(Year_of_event, race_location) %>%
+      distinct(Athlete_country) %>%
+      count(Year_of_event, race_location) %>%
+      ggplot(aes(x = Year_of_event, y = n, colour = race_location)) +
+      theme_minimal() +
+      geom_point() +
+      ggtitle('participant nationalities per race location')
+
+![](ultramarathons_files/figure-markdown_strict/unnamed-chunk-36-1.png)
+
+Of the major nations, France and Italy see the most diversity in terms
+of nationalities of athletes in their races, which is mainly led by UTMB
+and CCC races. RSA saw the fewest number of foreign nationals running in
+2021 & 2022, due to lower participants running Comrades due to
+post-Covid restrictions.
+
+A look at the last set of races before Covid sees Comrades as the race
+with the greatest number of nationalities present, followed by the UTMB
+group of races.
+
+    data_clean_1950 %>%
+      filter(Year_of_event == 2019) %>%
+      group_by(Year_of_event, Event_name, race_location) %>%
+      distinct(Athlete_country) %>%
+      count(Year_of_event, Event_name, race_location) %>%
+      arrange(desc(n)) %>% head(n = 20)
+
+    ## # A tibble: 20 × 4
+    ## # Groups:   Year_of_event, Event_name, race_location [20]
+    ##    Year_of_event Event_name                                  race_location     n
+    ##            <int> <chr>                                       <chr>         <int>
+    ##  1          2019 Comrades Marathon - Up Run (RSA)            RSA              72
+    ##  2          2019 Courmayeur-Champex-Chamonix (CCC) (ITA)     ITA              72
+    ##  3          2019 Orsières-Champex-Chamonix (OCC) (SUI)       SUI              63
+    ##  4          2019 Sur les Traces des Ducs de Savoie (TDS) (I… ITA              63
+    ##  5          2019 Ultra Trail Tour du Mont Blanc (UTMB) (FRA) FRA              63
+    ##  6          2019 Cortina Trail (ITA)                         ITA              62
+    ##  7          2019 Two Oceans Marathon (RSA)                   RSA              61
+    ##  8          2019 Two Oceans Marathon - 50km Split (RSA)      RSA              61
+    ##  9          2019 Lavaredo Ultra Trail (ITA)                  ITA              56
+    ## 10          2019 Cappadocia 119 km Ultra-Trail (TUR)         TUR              53
+    ## 11          2019 Tor des Géants - 330 km Endurance Trail de… ITA              53
+    ## 12          2019 Eiger Ultra Trail 101 km (SUI)              SUI              52
+    ## 13          2019 Ultra Dolomites (ITA)                       ITA              49
+    ## 14          2019 Eiger Ultra Trail 51 km (SUI)               SUI              48
+    ## 15          2019 Transgrancanaria advanced 65 km (ESP)       ESP              48
+    ## 16          2019 Hong Kong 100 Ultra Trail Race (HKG)        HKG              47
+    ## 17          2019 Cappadocia Medium Trail (TUR)               TUR              46
+    ## 18          2019 Transgrancanaria 128 km (ESP)               ESP              46
+    ## 19          2019 Oman by UTMB 50 Km (OMA)                    OMA              45
+    ## 20          2019 IAU 24h WC, 24 heures d'Albi (FRA)          FRA              44
+
+The group of UTMB races (UTMB, CCC, OCC & TDS) have amongst the highest
+percentage of foreign participation of any major race. This has grown
+from 15% in 2004 to 56% in 2022 for UTMB after considering French,
+Italian and Swiss participants as running in their home country due to
+the nature of the start lines.
+
+    utmb <- c('Ultra Trail Tour du Mont Blanc (UTMB) (FRA)',
+              'Courmayeur-Champex-Chamonix (CCC) (ITA)',
+              'Orsières-Champex-Chamonix (OCC) (SUI)',
+              'Sur les Traces des Ducs de Savoie (TDS) (ITA)')
+
+    data_clean_1950 %>%
+      filter(Event_name %in% utmb) %>%
+      mutate(foreign_race = if_else(Athlete_country %in% c('FRA', 'ITA', 'SUI'), 0, 1)) %>%
+      group_by(Year_of_event, Event_name) %>% 
+      summarise(foreign_participation = sum(foreign_race)/n()) %>% 
+      ggplot(aes(x = Year_of_event, y = foreign_participation, colour = Event_name)) +
+      theme_minimal() +
+      geom_point() +
+      ggtitle('foreign participation per race utmb') +
+      scale_y_continuous(labels = percent)
+
+![](ultramarathons_files/figure-markdown_strict/unnamed-chunk-38-1.png)
+
+In comparison, even though Comrades Marathon in South Africa tends to
+have the highest number of nationalities present, only 10% of the field
+are not South African.
+
+    data_clean_1950 %>%
+      filter(Event_name %in% c('Comrades Marathon - Down Run (RSA)','Comrades Marathon - Up Run (RSA)'),
+             Year_of_event != 2022) %>%
+      mutate(foreign_race = if_else(Athlete_country == race_location, 0, 1)) %>%
+      group_by(Year_of_event, Event_name) %>% 
+      summarise(foreign_participation = sum(foreign_race)/n()) %>% 
+      ggplot(aes(x = Year_of_event, y = foreign_participation, colour = Event_name)) +
+      theme_minimal() +
+      geom_point() +
+      ggtitle('foreign participation per Comrades race') +
+      scale_y_continuous(labels = percent)
+
+![](ultramarathons_files/figure-markdown_strict/unnamed-chunk-39-1.png)
 
 ## 3 Conclusion

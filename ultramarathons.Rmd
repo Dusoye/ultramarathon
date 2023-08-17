@@ -1,8 +1,6 @@
 ---
 title: "Exploring ultramarathon dataset"
-output:
-  html_notebook: default
-  github_document: default
+output: md_document
 ---
 
 ```{r, echo=FALSE}
@@ -602,6 +600,40 @@ data_clean_1950 %>%
   arrange(desc(n)) %>% head(n = 20)
 ```
 
+The group of UTMB races (UTMB, CCC, OCC & TDS) have amongst the highest percentage of foreign participation of any major race. This has grown from 15% in 2004 to 56% in 2022 for UTMB after considering French, Italian and Swiss participants as running in their home country due to the nature of the start lines.
 
+```{r}
+utmb <- c('Ultra Trail Tour du Mont Blanc (UTMB) (FRA)',
+          'Courmayeur-Champex-Chamonix (CCC) (ITA)',
+          'Orsières-Champex-Chamonix (OCC) (SUI)',
+          'Sur les Traces des Ducs de Savoie (TDS) (ITA)')
+
+data_clean_1950 %>%
+  filter(Event_name %in% utmb) %>%
+  mutate(foreign_race = if_else(Athlete_country %in% c('FRA', 'ITA', 'SUI'), 0, 1)) %>%
+  group_by(Year_of_event, Event_name) %>% 
+  summarise(foreign_participation = sum(foreign_race)/n()) %>% 
+  ggplot(aes(x = Year_of_event, y = foreign_participation, colour = Event_name)) +
+  theme_minimal() +
+  geom_point() +
+  ggtitle('foreign participation per race utmb') +
+  scale_y_continuous(labels = percent)
+```
+
+In comparison, even though Comrades Marathon in South Africa tends to have the highest number of nationalities present, only 10% of the field are not South African.
+
+```{r}
+data_clean_1950 %>%
+  filter(Event_name %in% c('Comrades Marathon - Down Run (RSA)','Comrades Marathon - Up Run (RSA)'),
+         Year_of_event != 2022) %>%
+  mutate(foreign_race = if_else(Athlete_country == race_location, 0, 1)) %>%
+  group_by(Year_of_event, Event_name) %>% 
+  summarise(foreign_participation = sum(foreign_race)/n()) %>% 
+  ggplot(aes(x = Year_of_event, y = foreign_participation, colour = Event_name)) +
+  theme_minimal() +
+  geom_point() +
+  ggtitle('foreign participation per Comrades race') +
+  scale_y_continuous(labels = percent)
+```
 
 ## 3 Conclusion
