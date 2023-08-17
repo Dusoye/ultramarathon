@@ -120,10 +120,10 @@ data_clean %>%
   filter(n < 6 | n > (nrow(.) - 5)) %>%
   dplyr::select(-n)
   
-
+race_locations <- c('FRA','ESP','USA','GBR','GER','ITA','RSA')
 data_clean_1950 %>%
   filter(Athlete_gender %in% c('M','F'),
-         race_location %in% c('FRA','ESP','USA','GBR','GER','ITA')) %>%
+         race_location %in% race_locations) %>%
   count(Year_of_event, Athlete_gender, race_location) %>%
   group_by(Year_of_event, race_location) %>%
   mutate(percent = n/sum(n)) %>% 
@@ -281,8 +281,7 @@ data_clean %>%
 
 age_groups = data.frame(age_breaks = c(0,seq.int(20,70, by = 5), Inf))
 
-data_clean %>%
-  filter(Year_of_event >= 1950) %>%
+data_clean_1950 %>%
   mutate(age_group = cut(athlete_age, age_groups$age_breaks)) %>%
   count(Year_of_event, age_group) %>%
   filter(complete.cases(.)) %>% 
@@ -290,30 +289,33 @@ data_clean %>%
   mutate(percent = n/sum(n)) %>%
   ggplot(aes(x = Year_of_event, y = percent, fill = age_group)) +
   geom_bar(stat = 'identity') +
-  theme_minimal()
+  theme_minimal() +
+  ggtitle('athlete ages')
 
 
-data_clean %>%
-  filter(Year_of_event >=2000) %>%
-  count(race_location) %>%
-  arrange(desc(n)) %>%
-  head(n = 6) -> top_countries
-
-data_clean %>%
-  filter(race_location %in% top_countries$race_location,
-         Year_of_event >= 1950) %>%
+data_clean_1950 %>%
+  filter(race_location %in% race_locations) %>%
   group_by(Year_of_event, race_location) %>%
   distinct(Athlete_country) %>%
   count(Year_of_event, race_location) %>%
+  ggplot(aes(x = Year_of_event, y = n, fill = race_location)) +
+  theme_minimal() +
+  geom_bar(stat = 'identity', position = position_dodge(width = 0)) +
+  ggtitle('nationalities per race')
+
+data_clean_1950 %>%
+  filter(race_location %in% race_locations) %>%
+  group_by(Year_of_event, race_location) %>%
+  distinct(Athlete_country) %>%
+  count(Year_of_event, race_location) %>% View()
   ggplot(aes(x = Year_of_event, y = n, colour = race_location)) +
   theme_minimal() +
   geom_point() +
-  ggtitle('nationalities per race')
+  ggtitle('participant nationalities per race location')
 
 
-data_clean %>%
-  filter(race_location %in% top_countries$race_location,
-         Year_of_event >= 1950) %>%
+data_clean_1950 %>%
+  filter(race_location %in% race_locations) %>%
   mutate(foreign_race = if_else(Athlete_country == race_location, 0, 1)) %>%
   group_by(Year_of_event, race_location) %>% 
   summarise(foreign_participation = sum(foreign_race)/n()) %>% 
@@ -323,11 +325,13 @@ data_clean %>%
   ggtitle('foreign participation per race')
   
 data_clean %>%
-  filter(Year_of_event == 2022) %>%
+  filter(Year_of_event == 2019) %>%
   group_by(Year_of_event, Event_name, race_location) %>%
   distinct(Athlete_country) %>%
   count(Year_of_event, Event_name, race_location) %>%
   arrange(desc(n)) %>% head(n = 20)
+
+utmb <- distinct(data_clean_1950, Event_name) %>% filter(Event_name %like% c('(CCC)','(UTMB)','(TDS)','(OCC)'))
 
 data_clean %>%
   filter(Event_name %in% utmb$Event_name,
