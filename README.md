@@ -1,8 +1,10 @@
 ## 1. Introduction
 
-### 1.1 Load and check data
+This dataset allows us to have a great look at the changes that have
+happened in ultramarathon racing and shows how both participation and
+the number of events have grown exponentially since the 1950’s.
 
-First let’s load the required libraries and dataset
+### 1.1 Load and check data
 
     library(data.table)
     library(dplyr)
@@ -15,6 +17,7 @@ First let’s load the required libraries and dataset
     library(lubridate)
 
     data <- fread('./data/TWO_CENTURIES_OF_UM_RACES.csv', sep = ',', header = TRUE)
+    #data <- fread('/kaggle/input/the-big-dataset-of-ultra-marathon-running/TWO_CENTURIES_OF_UM_RACES.csv', sep = ',', header = TRUE)
     summary(data)
 
     ##  Year of event  Event dates         Event name        Event distance/length
@@ -609,7 +612,7 @@ completions of Comrades and Two Oceans.
     ## 10 ITA                     59475          341228      5.74
 
 After removing Athlete\_ID 4033, Athlete 236 appears to have run the
-most number of ultramarathons in the world, totalling 801.
+most number of ultramarathons in the world, totaling 801.
 
     data_clean_1950 %>%
       filter(Athlete_ID != 4033) %>%
@@ -1120,3 +1123,21 @@ are not South African.
 ![](ultramarathons_files/figure-markdown_strict/unnamed-chunk-39-1.png)
 
 ## 3 Conclusion
+
+It’s clear to see from the analysis presented that the popularity of
+ultra-marathon running continues to increase substantially each year,
+both in terms of the number of participants and number of events
+available to take part in. The diverstity element is also improving,
+based on the data available, for gender, age and range of nationalities.
+The gender differences are steadily improving but has a long way to go
+to becoming more equal in terms of male/female ratio, and some countries
+such as Spain and France are a long way behind USA and UK.
+
+Data not available in this dataset is ethnicity of participant, which
+has an even larger disparity than gender. The University of Lancaster
+[conducted a
+survey](https://static1.squarespace.com/static/617668ef2b69d5286e7fad19/t/63dbb7697374b920b8413c70/1675343728326/Trail+Ultra+Survey+Report.pdf)
+in 2022, consisting of over 1,000 respondants, of which 95% indicated
+their ethnicity as “White”. Further analysis would be interesting to see
+whether or not this is a percentage that has changed at all over recent
+years
