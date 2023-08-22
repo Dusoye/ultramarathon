@@ -1100,7 +1100,8 @@ the nature of the start lines.
       theme_minimal() +
       geom_point() +
       ggtitle('foreign participation per race utmb') +
-      scale_y_continuous(labels = percent)
+      scale_y_continuous(labels = percent) +
+      theme(legend.position="bottom", legend.direction="vertical")
 
 ![](ultramarathons_files/figure-markdown_strict/unnamed-chunk-38-1.png)
 
@@ -1118,7 +1119,8 @@ are not South African.
       theme_minimal() +
       geom_point() +
       ggtitle('foreign participation per Comrades race') +
-      scale_y_continuous(labels = percent)
+      scale_y_continuous(labels = percent) +
+      theme(legend.position="bottom", legend.direction="vertical")
 
 ![](ultramarathons_files/figure-markdown_strict/unnamed-chunk-39-1.png)
 

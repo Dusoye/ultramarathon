@@ -619,7 +619,8 @@ data_clean_1950 %>%
   theme_minimal() +
   geom_point() +
   ggtitle('foreign participation per race utmb') +
-  scale_y_continuous(labels = percent)
+  scale_y_continuous(labels = percent) +
+  theme(legend.position="bottom", legend.direction="vertical")
 ```
 
 In comparison, even though Comrades Marathon in South Africa tends to have the highest number of nationalities present, only 10% of the field are not South African.
@@ -635,7 +636,8 @@ data_clean_1950 %>%
   theme_minimal() +
   geom_point() +
   ggtitle('foreign participation per Comrades race') +
-  scale_y_continuous(labels = percent)
+  scale_y_continuous(labels = percent) +
+  theme(legend.position="bottom", legend.direction="vertical")
 ```
 
 ## 3 Conclusion
