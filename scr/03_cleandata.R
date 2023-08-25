@@ -3,7 +3,7 @@ data.prep <- function(data){
   
   dataout <- data %>%
     filter(!`Event_distance/length` %like% '/') %>% #filter out stage races
-    select(-c(Event_dates,  Athlete_club)) #columns not required
+    select(-c(Athlete_club)) #columns not required
 }
 
 #extract key info about event transform columns
@@ -11,6 +11,7 @@ race.details <- function(data){
   dataout <- data %>%
     mutate(race_location = str_extract(Event_name, "\\(([^()]*)\\)(?![^()]*\\()"), 
            race_location = str_replace_all(race_location, "[()]", ""), 
+           race_date = as.Date(Event_dates, format = "%d.%m.%Y"),
            race_distance = as.numeric(str_extract(`Event_distance/length`, "[0-9.]+")),
            race_unit = tolower(str_extract(`Event_distance/length`, "[a-zA-Z]+")),
            race_distance = as.numeric(race_distance),

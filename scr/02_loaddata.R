@@ -1,4 +1,5 @@
-raw_data <- fread("./data/TWO_CENTURIES_OF_UM_RACES")
+# load dataset
+raw_data <- fread("./data/TWO_CENTURIES_OF_UM_RACES.csv")
 
 #load country mappings
 library(rvest)
