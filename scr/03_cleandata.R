@@ -4,6 +4,8 @@ data.prep <- function(data){
   dataout <- data %>%
     filter(!`Event_distance/length` %like% '/') %>% #filter out stage races
     select(-c(Athlete_club)) #columns not required
+  
+  return(dataout)
 }
 
 #extract key info about event transform columns
@@ -56,7 +58,7 @@ amend.errors <- function(data){
     # this event has miles as race unit rather than km
     mutate(race_unit = if_else(Event_name == 'Pigtails Challenge 100 Km (USA)', 'km', race_unit),
            distance_km = if_else(Event_name == 'Pigtails Challenge 100 Km (USA)', 100, distance_km)) %>%
-    # exlude small amount of performances with highly unlikely speed data
+    # exclude small amount of performances with highly unlikely speed data
     mutate(speed = if_else(race_type == 'distance', distance_km/(as.numeric(athlete_duration) / (60 * 60)),
                            athlete_distance / (race_distance * if_else(race_unit == 'd', 24, 1)))) %>%
     filter(speed < 20)
@@ -76,7 +78,7 @@ data.clean <- function(data){
   dataout <- race.details(dataout)
   dataout <- athlete.details(dataout)
   dataout <- amend.errors(dataout)
-  dataout <- drop.columns(dataout, c(Event_dates, `Event_distance/length`, Athlete_club, Athlete_performance))
+  dataout <- drop.columns(dataout, c(`Event_distance/length`, Athlete_club, Athlete_performance))
   
   return(dataout)
 }

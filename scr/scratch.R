@@ -467,3 +467,43 @@ data_clean %>%
          speed_error = if_else(speed >= 20 | athlete_duration == 0, TRUE, FALSE)) %>%
   arrange(desc(speed)) %>%
   View()
+
+library(rnaturalearth)
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+tmp <- merge(dataout, ioc_codes, by.x = 'race_location', by.y = 'code')
+
+tmp <- dataout %>%
+  mutate(month = month(race_date)) %>%
+  filter(Year_of_event == 2022) %>%
+  count(month, country) %>%
+  filter(complete.cases(.))
+
+merged_data <- merge(world, tmp, by.x = "name", by.y = "country", repl)
+
+library(ggplot2)
+library(gganimate)
+
+p <- ggplot(data = merged_data) +
+  geom_sf(aes(fill = n)) +
+  scale_fill_viridis_c(na.value = "grey") +
+  labs(title = "Month: {closest_state}") +
+  theme_minimal() +
+  transition_states(month, transition_length = 2, state_length = 1) +
+  enter_fade() +
+  exit_fade()
+
+anim <- animate(p, duration = 12, fps = 1, rewind = TRUE)
+anim
+
+
+data_clean_1950 %>%
+  group_by(Athlete_ID, Event_name) %>%
+  summarise(event_count = n()) %>%
+  filter(event_count >= 5) -> multi_event_athlete
+
+data_clean_1950 %>%
+  select(Athlete_ID, athlete_age, Event_name, athlete_duration) %>%
+  merge(., multi_event_athlete, by = c('Athlete_ID', 'Event_name')) %>%
+  group_by(Athlete_ID, Event_name) %>%
+  mutate(time_diff = athlete_duration/)
