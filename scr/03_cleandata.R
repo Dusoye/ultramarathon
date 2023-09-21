@@ -78,7 +78,6 @@ data.clean <- function(data){
   dataout <- race.details(dataout)
   dataout <- athlete.details(dataout)
   dataout <- amend.errors(dataout)
-  dataout <- drop.columns(dataout, c(`Event_distance/length`, Athlete_club, Athlete_performance))
   
   return(dataout)
 }

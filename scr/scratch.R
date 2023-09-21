@@ -506,4 +506,12 @@ data_clean_1950 %>%
   select(Athlete_ID, athlete_age, Event_name, athlete_duration) %>%
   merge(., multi_event_athlete, by = c('Athlete_ID', 'Event_name')) %>%
   group_by(Athlete_ID, Event_name) %>%
-  mutate(time_diff = athlete_duration/)
+  mutate(time_diff = athlete_duration)
+
+data_clean %>%
+  filter(Year_of_event == '2022') %>%
+  distinct(Year_of_event, Event_name, race_distance, race_unit, race_type) %>%
+  mutate(race_distance = paste0(race_distance, race_unit)) %>%
+  count(race_distance) %>%
+  arrange(desc(n)) %>% View()
+  tail(n = 10)
