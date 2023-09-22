@@ -170,7 +170,7 @@ image_animate(animation, "animation.gif", delay = 100)
 
 system("convert -delay 80 ./output/maps/*.png ./output/maps/maps_over_time.gif")
 
-file.remove(list.files(pattern="./output/maps/"))
+file.remove(list.files(pattern="./output/maps/*"))
 
 p <- ggplot(data = merged_data) +
   geom_sf(aes(fill = percent)) +

@@ -1,9 +1,41 @@
 data_clean <- data.clean(raw_data)
 rm(raw_data)
 
-#######
+
+#####################
+# overall participation
+#####################
+
+data_clean %>% 
+  filter(Year_of_event>2000) %>% 
+  group_by(Year_of_event) %>% 
+  summarise(events = length(unique(Event_name)), runners = n()) -> stats_year
+
+data_clean %>%
+  group_by(Year_of_event, race_type) %>%
+  distinct(Event_name, race_type) %>% 
+  count(Year_of_event, race_type) %>%
+  ggplot(aes(x = Year_of_event, y = n, colour = race_type)) +
+  theme_minimal() +
+  geom_point() +
+  scale_y_continuous(labels = comma) +
+  ggtitle('Number of events per year') -> events.p
+
+data_clean %>%
+  count(Year_of_event, race_type) %>%
+  ggplot(aes(x = Year_of_event, y = n, colour = race_type)) +
+  theme_minimal() +
+  geom_point() +
+  scale_y_continuous(labels = comma) +
+  ggtitle('Number of participants per year') -> athletes.p
+
+grid.arrange(events.p, athletes.p, ncol = 1)
+
+#####################
 # gender distribution plots
-#######
+#####################
+
+# female participation by year 
 female_perc <- data_clean %>%
   filter(Athlete_gender %in% c('M','F'),
          Year_of_event >= 1950) %>%
@@ -42,10 +74,11 @@ data_clean %>%
   geom_bar(stat = "identity") +
   scale_fill_manual(values = c("F_observed" = "#F8766D", "M_observed" = "#00BFC4", 
                                "F_predicted" = "#FFCCCC", "M_predicted" = "#33FFFF")) +
-  theme_tufte() +
+  theme_minimal() +
   ggtitle('Gender divide') +
   scale_y_continuous(labels = percent) -> genderpercpredict.p
 
+# plot observed
 data_clean %>%
   filter(Year_of_event >= 1950,
          Athlete_gender %in% c('M','F')) %>%
@@ -54,13 +87,13 @@ data_clean %>%
   mutate(percent = n/sum(n)) %>%
   ggplot(aes(x = Year_of_event, y = percent, fill = Athlete_gender)) +
   geom_bar(stat = 'identity') +
-  theme_tufte() +
+  theme_minimal() +
   labs(x = 'year', y = 'percentage', fill = 'gender') +
   ggtitle('Gender divide') +
   scale_y_continuous(labels = percent) -> genderperc.p
 
-
-race_locations <- c('FRA','ESP','USA','GBR','GER','ITA','RSA')
+# participation rates by country
+race_locations <- c('FRA','ESP','USA','GBR','GER','AUS','RSA')
 data_clean %>%
   filter(Year_of_event >= 1950,
          Athlete_gender %in% c('M','F'),
@@ -68,7 +101,7 @@ data_clean %>%
   count(Year_of_event, Athlete_gender, race_location) %>%
   group_by(Year_of_event, race_location) %>%
   mutate(percent = n/sum(n)) %>% 
-  filter(Athlete_gender == 'F') %>% View()
+  filter(Athlete_gender == 'F') %>% 
   ggplot(aes(x = Year_of_event, y = percent, colour = race_location)) +
   geom_line() +
   theme_minimal() +
@@ -76,8 +109,16 @@ data_clean %>%
   ggtitle('Gender divide') +
   scale_y_continuous(labels = percent) -> genderperccountry.p
 
+  
+## geospatial gender percentage gif
+race_count <- data_clean %>%
+  filter(Year_of_event >= 1990,
+         Athlete_gender %in% c('M','F')) %>%
+  distinct(Year_of_event, race_location, Event_name) %>%
+  count(Year_of_event, race_location) %>%
+  rename(event_count = n)
 
-female_perc <- data_clean %>%
+female_perc_country <- data_clean %>%
   filter(Year_of_event >= 1990,
          Athlete_gender %in% c('M','F')) %>%
   count(Year_of_event, race_location, Athlete_gender) %>%
@@ -85,7 +126,51 @@ female_perc <- data_clean %>%
   mutate(percent = n/sum(n)) %>% 
   filter(Athlete_gender == 'F') %>%
   merge(., race_count, by = c('Year_of_event', 'race_location'), all = TRUE) %>%
-  filter(event_count > 5)
+  merge(., ioc_codes, by.x = 'race_location', by.y = 'code') %>% #join ioc names to more accurately join to geospatial data
+  filter(event_count > 2) %>%
+  arrange(Year_of_event, race_location)
 
-# Filter for the year 2022 and gender 'F'
-filtered_data <- female_perc %>% filter(Year_of_event == 2019 & Athlete_gender == 'F')
+#filtered_data <- female_perc_country %>% filter(Year_of_event == 2022 & Athlete_gender == 'F')
+
+world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") %>% filter(sovereignt != 'Antarctica')
+
+years <- unique(female_perc_country$Year_of_event)
+
+for(i in years){
+  filtered_data <- female_perc_country %>% filter(Year_of_event == i & Athlete_gender == 'F')
+  
+  # Merge the data based on ISO country codes if exists, if not join on country name
+  iso_merged_data = left_join(world, filtered_data, by = c("iso_a3" = "race_location"))
+  country_merged_data <- left_join(world[is.na(iso_merged_data$percent), ], filtered_data, by = c("name" = "country"))
+  merged_data <- bind_rows(iso_merged_data, country_merged_data)
+  
+  ggplot(data = merged_data) +
+    geom_sf(aes(fill = percent)) +
+    scale_fill_gradientn(colors = rev(viridis::inferno(7)), limits = c(0, 0.5), name = "Percentage") +
+    theme_minimal() +
+    ggtitle(paste0("Female participant Heatmap ", i)) +
+    theme(axis.title.x=element_blank(),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank(),
+          axis.title.y=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank(),
+          legend.title=element_text(size=10),
+          legend.text=element_text(size=5),
+          legend.position="right")-> p
+  
+  ggsave(paste("./output/maps/", i, ".png", sep=""), plot = p, width=12, height=5)
+}
+
+
+img_files <- paste0("./output/maps/", years, ".png")
+animation <- image_read(img_files)
+frames = c()
+
+for (i in length(img_files):1) {
+  x = image_read(img_files[i])
+  c(x, frames) -> frames
+}
+
+animation = image_animate(frames, fps = 2, dispose = "previous")
+image_write(animation, "./output/participation_map.gif")
