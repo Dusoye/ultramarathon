@@ -183,3 +183,25 @@ p <- ggplot(data = merged_data) +
 anim <- animate(p, duration = 12, fps = 1, rewind = TRUE)
 anim
 
+install.packages("highcharter")
+library(highcharter)
+
+race_locations <- c('FRA','ESP','USA','GBR','GER','AUS','RSA','NZL')
+data_clean %>%
+  filter(Year_of_event >= 1950,
+         Athlete_gender %in% c('M','F'),
+         race_location %in% race_locations) %>%
+  count(Year_of_event, Athlete_gender, race_location) %>%
+  group_by(Year_of_event, race_location) %>%
+  mutate(percent = n/sum(n)) %>% 
+  filter(Athlete_gender == 'F') %>% 
+  hchart(., "line", hcaes(x = Year_of_event, y = percent, group = race_location)) %>%
+  hc_plotOptions(
+    series = list(
+      marker = list(
+        enabled = FALSE  # This disables the point markers
+      )
+    )
+  )
+
+

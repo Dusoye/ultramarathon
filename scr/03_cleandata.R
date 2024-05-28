@@ -1,15 +1,15 @@
-data.prep <- function(data){
+data_prep <- function(data){
   names(data) <- gsub(" ", "_", names(data)) #replace spaces from column names
-  
+
   dataout <- data %>%
     filter(!`Event_distance/length` %like% '/') %>% #filter out stage races
     select(-c(Athlete_club)) #columns not required
-  
+
   return(dataout)
 }
 
 #extract key info about event transform columns
-race.details <- function(data){
+race_details <- function(data){
   dataout <- data %>%
     mutate(race_location = str_extract(Event_name, "\\(([^()]*)\\)(?![^()]*\\()"), 
            race_location = str_replace_all(race_location, "[()]", ""), 
@@ -23,12 +23,12 @@ race.details <- function(data){
                                        if_else(str_starts(race_unit, 'm'), 'm', 'other'))),
            distance_km = if_else(race_unit == 'km', race_distance, if_else(race_unit == 'm', race_distance*1.62, NA)),
            `Event_distance/length` = NULL)
-  
+
   return(dataout)
 }
 
 #extract info about individual athletes
-athlete.details <- function(data){
+athlete_details <- function(data){
   dataout <- data %>%
     mutate(numeric_string = str_extract(Athlete_performance, "\\d+[:d.]+\\d+[:.]*\\d*"),
           athlete_units = str_extract(Athlete_performance, "[a-zA-Z ]+"),
@@ -47,13 +47,12 @@ athlete.details <- function(data){
           days = NULL,
           time = NULL,
           numeric_string = NULL
-    ) 
-  
+    )
   return(dataout)
 }
 
 # function to correct/exclude inconsistencies
-amend.errors <- function(data){
+amend_errors <- function(data){
   dataout <- data %>%
     # this event has miles as race unit rather than km
     mutate(race_unit = if_else(Event_name == 'Pigtails Challenge 100 Km (USA)', 'km', race_unit),
@@ -62,22 +61,21 @@ amend.errors <- function(data){
     mutate(speed = if_else(race_type == 'distance', distance_km/(as.numeric(athlete_duration) / (60 * 60)),
                            athlete_distance / (race_distance * if_else(race_unit == 'd', 24, 1)))) %>%
     filter(speed < 20)
-  
+
   return(dataout)
 }
 
-drop.columns <- function(data, cols){
+drop_columns <- function(data, cols){
   dataout <- data %>%
     select(-cols)
-  
+
   return(dataout)
 }
 
-data.clean <- function(data){
-  dataout <- data.prep(data) 
-  dataout <- race.details(dataout)
-  dataout <- athlete.details(dataout)
-  dataout <- amend.errors(dataout)
-  
+data_clean <- function(data){
+  dataout <- data_prep(data) 
+  dataout <- race_details(dataout)
+  dataout <- athlete_details(dataout)
+  dataout <- amend_errors(dataout)
   return(dataout)
 }

@@ -1,4 +1,4 @@
-data_clean <- data.clean(raw_data)
+data <- data_clean(raw_data)
 rm(raw_data)
 
 
@@ -6,12 +6,12 @@ rm(raw_data)
 # overall participation
 #####################
 
-data_clean %>% 
+data %>% 
   filter(Year_of_event>2000) %>% 
   group_by(Year_of_event) %>% 
   summarise(events = length(unique(Event_name)), runners = n()) -> stats_year
 
-data_clean %>%
+data %>%
   group_by(Year_of_event, race_type) %>%
   distinct(Event_name, race_type) %>% 
   count(Year_of_event, race_type) %>%
@@ -21,7 +21,7 @@ data_clean %>%
   scale_y_continuous(labels = comma) +
   ggtitle('Number of events per year') -> events.p
 
-data_clean %>%
+data %>%
   count(Year_of_event, race_type) %>%
   ggplot(aes(x = Year_of_event, y = n, colour = race_type)) +
   theme_minimal() +
@@ -36,7 +36,7 @@ grid.arrange(events.p, athletes.p, ncol = 1)
 #####################
 
 # female participation by year 
-female_perc <- data_clean %>%
+female_perc <- data %>%
   filter(Athlete_gender %in% c('M','F'),
          Year_of_event >= 1950) %>%
   count(Year_of_event, Athlete_gender) %>%
@@ -55,7 +55,7 @@ future_years$percent <- predict(seg.mod, newdata = future_years, type = "respons
 future_years$source <- 'predicted'
 
 # Combine past data with future predictions
-data_clean %>%
+data %>%
   filter(Year_of_event >= 1950,
          Athlete_gender %in% c('M','F')) %>%
   count(Year_of_event, Athlete_gender) %>%
@@ -79,7 +79,7 @@ data_clean %>%
   scale_y_continuous(labels = percent) -> genderpercpredict.p
 
 # plot observed
-data_clean %>%
+data %>%
   filter(Year_of_event >= 1950,
          Athlete_gender %in% c('M','F')) %>%
   count(Year_of_event, Athlete_gender) %>%
@@ -93,8 +93,8 @@ data_clean %>%
   scale_y_continuous(labels = percent) -> genderperc.p
 
 # participation rates by country
-race_locations <- c('FRA','ESP','USA','GBR','GER','AUS','RSA')
-data_clean %>%
+race_locations <- c('FRA','ESP','USA','GBR','GER','AUS','RSA','NZL')
+data %>%
   filter(Year_of_event >= 1950,
          Athlete_gender %in% c('M','F'),
          race_location %in% race_locations) %>%
@@ -109,16 +109,15 @@ data_clean %>%
   ggtitle('Gender divide') +
   scale_y_continuous(labels = percent) -> genderperccountry.p
 
-  
 ## geospatial gender percentage gif
-race_count <- data_clean %>%
+race_count <- data %>%
   filter(Year_of_event >= 1990,
          Athlete_gender %in% c('M','F')) %>%
   distinct(Year_of_event, race_location, Event_name) %>%
   count(Year_of_event, race_location) %>%
   rename(event_count = n)
 
-female_perc_country <- data_clean %>%
+female_perc_country <- data %>%
   filter(Year_of_event >= 1990,
          Athlete_gender %in% c('M','F')) %>%
   count(Year_of_event, race_location, Athlete_gender) %>%
@@ -162,7 +161,6 @@ for(i in years){
   ggsave(paste("./output/maps/", i, ".png", sep=""), plot = p, width=12, height=5)
 }
 
-
 img_files <- paste0("./output/maps/", years, ".png")
 animation <- image_read(img_files)
 frames = c()
@@ -174,3 +172,48 @@ for (i in length(img_files):1) {
 
 animation = image_animate(frames, fps = 2, dispose = "previous")
 image_write(animation, "./output/participation_map.gif")
+
+
+#####################
+# performance
+#####################
+
+data %>%
+  filter(Year_of_event >= 1980) %>%
+  mutate(race_distance = paste0(race_distance, race_unit)) %>%
+  filter(race_distance %in% c('50km','100km','50m','100m')) %>%
+  group_by(Year_of_event, race_distance) %>%
+  summarise(quickest_time = as.duration(min(athlete_duration)),
+            average_time = mean(athlete_duration)) %>% 
+  ggplot(aes(x = Year_of_event, y = average_time/(60*60), colour = race_distance)) +
+  geom_line() +
+  theme_minimal() +
+  ylab('time (h)') +
+  ggtitle('average time') -> avg.time.p
+
+gender_pace <- data %>%
+  filter(Year_of_event >= 1980, race_type == 'distance') %>%
+  mutate(race_distance = paste0(race_distance, race_unit),
+         event = paste0(Year_of_event, '_', Event_name)) %>% 
+  filter(race_distance %in% c('50km','100km','50m','100m'),
+         Athlete_gender %in% c('F','M')) %>% 
+  group_by(Year_of_event, race_distance, event, Athlete_gender) %>%
+  summarise(fastest_time = min(athlete_duration),
+            average_time = mean(athlete_duration)) %>%
+  pivot_wider(names_from = Athlete_gender, values_from = c(fastest_time, average_time)) %>%
+  mutate(event = str_replace(event, "^[^_]*_", "")) %>%
+  ungroup() %>% group_by(event) %>%
+  mutate(average_diff_f = (average_time_F - first(average_time_F))/average_time_F,
+         average_diff_m = (average_time_M - first(average_time_M))/average_time_M) %>%
+  ungroup()
+
+gender_pace %>%
+  select(Year_of_event, race_distance, female = average_diff_f, male = average_diff_m) %>%
+  pivot_longer(cols = c(female,male), names_to ='gender', values_to = 'difference') %>% 
+  group_by(Year_of_event, gender) %>%
+  summarise(percent_diff = mean(difference, na.rm = TRUE)) %>%
+  #mutate(gender_dist = paste0(race_distance, '_', gender)) %>%
+  ggplot(aes(x=Year_of_event, y = percent_diff, colour = gender)) +
+  geom_line() +
+  theme_minimal()
+
